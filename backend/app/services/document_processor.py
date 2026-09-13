@@ -231,7 +231,7 @@ async def preview_document(file_path: str, chunk_size: int = 1000, chunk_overlap
     finally:
         os.unlink(temp_path)
 
-async def process_document_background(
+def process_document_background(
     temp_path: str,
     file_name: str,
     kb_id: int,

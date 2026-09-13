@@ -54,7 +54,7 @@ USER nextjs
 EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "wget", "-q0", "http://localhost:3000/health" ]
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD wget --spider -q http://localhost:3000/ || exit 1
 
 # Run the nextjs app
 CMD ["node", "server.js"]

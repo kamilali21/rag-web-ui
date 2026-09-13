@@ -3,7 +3,7 @@ import base64
 from typing import List, AsyncGenerator
 from sqlalchemy.orm import Session
 from langchain_openai import ChatOpenAI
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains import create_history_aware_retriever
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain_core.messages import HumanMessage, AIMessage
@@ -135,11 +135,11 @@ async def generate_response(
             document_prompt=document_prompt
         )
 
-        # Create retrieval chain
-        rag_chain = create_retrieval_chain(
-            history_aware_retriever,
-            question_answer_chain,
-        )
+        # # Create retrieval chain
+        # rag_chain = create_retrieval_chain(
+        #     history_aware_retriever,
+        #     question_answer_chain,
+        # )
 
         # Generate response
         chat_history = []
@@ -152,43 +152,60 @@ async def generate_response(
                     message["content"] = message["content"].split("__LLM_RESPONSE__")[-1]
                 chat_history.append(AIMessage(content=message["content"]))
 
-        full_response = ""
-        async for chunk in rag_chain.astream({
+            full_response = ""
+
+        # 1. Retrieve the relevant documents first.
+        # This avoids the LangChain streaming issue where the QA chain
+        # can start before the "context" key has been populated.
+        retrieved_docs = await history_aware_retriever.ainvoke({
             "input": query,
             "chat_history": chat_history
-        }):
-            if "context" in chunk:
-                serializable_context = []
-                for context in chunk["context"]:
-                    serializable_doc = {
-                        "page_content": context.page_content.replace('"', '\\"'),
-                        "metadata": context.metadata,
-                    }
-                    serializable_context.append(serializable_doc)
-                
-                # 先替换引号，再序列化
-                escaped_context = json.dumps({
-                    "context": serializable_context
-                })
+        })
 
-                # 转成 base64
-                base64_context = base64.b64encode(escaped_context.encode()).decode()
+        # 2. Send retrieved context to the frontend before the LLM response.
+        serializable_context = []
 
-                # 连接符号
-                separator = "__LLM_RESPONSE__"
-                
-                yield f'0:"{base64_context}{separator}"\n'
-                full_response += base64_context + separator
+        for context in retrieved_docs:
+            serializable_doc = {
+                "page_content": context.page_content,
+                "metadata": context.metadata,
+            }
+            serializable_context.append(serializable_doc)
 
-            if "answer" in chunk:
-                answer_chunk = chunk["answer"]
-                full_response += answer_chunk
-                # Escape quotes and use json.dumps to properly handle special characters
-                escaped_chunk = (answer_chunk
-                    .replace('"', '\\"')
-                    .replace('\n', '\\n'))
-                yield f'0:"{escaped_chunk}"\n'
-            
+        escaped_context = json.dumps({
+            "context": serializable_context
+        })
+
+        base64_context = base64.b64encode(
+            escaped_context.encode("utf-8")
+        ).decode("utf-8")
+
+        separator = "__LLM_RESPONSE__"
+
+        # json.dumps safely handles quotes/newlines for the stream protocol
+        yield f'0:{json.dumps(base64_context + separator)}\n'
+
+        full_response += base64_context + separator
+
+        # 3. Explicitly provide context to the document/answer chain.
+        qa_input = {
+            "input": query,
+            "chat_history": chat_history,
+            "context": retrieved_docs
+        }
+
+        # 4. Stream only the LLM answer.
+        async for answer_chunk in question_answer_chain.astream(qa_input):
+            if answer_chunk is None:
+                continue
+
+            if not isinstance(answer_chunk, str):
+                answer_chunk = str(answer_chunk)
+
+            full_response += answer_chunk
+
+            yield f'0:{json.dumps(answer_chunk)}\n'
+
         # Update bot message content
         bot_message.content = full_response
         db.commit()

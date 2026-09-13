@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 import time
-import asyncio
+
 
 from app.db.session import get_db
 from app.models.user import User
@@ -421,19 +421,20 @@ async def process_kb_documents(
     
     return {"tasks": task_info}
 
-async def add_processing_tasks_to_queue(task_data, kb_id):
-    """Helper function to add document processing tasks to the queue without blocking the main response."""
+def add_processing_tasks_to_queue(task_data, kb_id):
+    """Process documents in FastAPI's background thread pool."""
     for data in task_data:
-        asyncio.create_task(
-            process_document_background(
-                data["temp_path"],
-                data["file_name"],
-                kb_id,
-                data["task_id"],
-                None
-            )
+        process_document_background(
+            data["temp_path"],
+            data["file_name"],
+            kb_id,
+            data["task_id"],
+            None
         )
-    logger.info(f"Added {len(task_data)} document processing tasks to queue")
+
+    logger.info(
+        f"Processed {len(task_data)} document processing tasks"
+    )
 
 @router.post("/cleanup")
 async def cleanup_temp_files(
