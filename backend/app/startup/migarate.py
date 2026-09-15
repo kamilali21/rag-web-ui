@@ -6,6 +6,7 @@ from typing import Generator, Tuple
 from alembic.config import Config
 from alembic.config import main as alembic_main
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Connection
 
@@ -38,6 +39,9 @@ class DatabaseMigrator:
         except Exception as e:
             logger.error(f"Database connection error: {e}")
             raise
+        finally:
+            # Added by ChatGPT: startup checks should not leave a connection pool behind.
+            engine.dispose()
 
     def check_migration_needed(self) -> Tuple[bool, str, str]:
         """
@@ -52,13 +56,10 @@ class DatabaseMigrator:
         with self.database_connection() as connection:
             context = MigrationContext.configure(connection)
             current_rev = context.get_current_revision()
-            heads = context.get_current_heads()
-
-        if not heads:
-            logger.warning("No migration heads found. Database might not be initialized.")
-            return True, current_rev or "None", "head"
-
-        head_rev = heads[0]
+        # Added by ChatGPT: compare the database with migration files, not with itself.
+        head_rev = ScriptDirectory.from_config(self.alembic_cfg).get_current_head()
+        if head_rev is None:
+            raise RuntimeError("No migration script head found")
         return current_rev != head_rev, current_rev or "None", head_rev
 
     def _get_alembic_config(self) -> Config:

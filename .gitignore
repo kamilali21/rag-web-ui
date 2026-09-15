@@ -63,3 +63,5 @@ backend/media/
 frontend/.env
 backend/.env
 *.bak
+# Added by ChatGPT: local database backups and verification receipts are never committed.
+.local/

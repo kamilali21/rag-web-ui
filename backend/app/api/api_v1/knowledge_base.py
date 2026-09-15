@@ -179,7 +179,8 @@ async def delete_knowledge_base(
         # 1. Clean up MinIO files
         try:
             # Delete all objects with prefix kb_{kb_id}/
-            objects = minio_client.list_objects(settings.MINIO_BUCKET_NAME, prefix=f"kb_{kb_id}/")
+            # Added by ChatGPT: include staged uploads nested under the collection prefix.
+            objects = minio_client.list_objects(settings.MINIO_BUCKET_NAME, prefix=f"kb_{kb_id}/", recursive=True)
             for obj in objects:
                 minio_client.remove_object(settings.MINIO_BUCKET_NAME, obj.object_name)
             logger.info(f"Cleaned up MinIO files for knowledge base {kb_id}")
@@ -189,7 +190,8 @@ async def delete_knowledge_base(
         
         # 2. Clean up vector store
         try:
-            vector_store._store.delete_collection(f"kb_{kb_id}")
+            # Added by ChatGPT: use the existing backend-neutral vector store contract.
+            vector_store.delete_collection()
             logger.info(f"Cleaned up vector store for knowledge base {kb_id}")
         except Exception as e:
             cleanup_errors.append(f"Failed to clean up vector store: {str(e)}")

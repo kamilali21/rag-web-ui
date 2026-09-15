@@ -24,7 +24,12 @@ class ChromaVectorStore(BaseVectorStore):
         )
     def add_documents(self, documents: List[Document]) -> None:
         """Add documents to Chroma"""
-        self._store.add_documents(documents)
+        # Added by ChatGPT: inserts and later deletes use the same relational chunk IDs.
+        ids = [document.metadata.get("chunk_id") for document in documents]
+        if documents and all(ids):
+            self._store.add_documents(documents, ids=ids)
+        elif documents:
+            self._store.add_documents(documents)
     
     def delete(self, ids: List[str]) -> None:
         """Delete documents from Chroma"""
@@ -44,4 +49,4 @@ class ChromaVectorStore(BaseVectorStore):
 
     def delete_collection(self) -> None:
         """Delete the entire collection"""
-        self._store._client.delete_collection(self._store._collection.name) 
+        self._store._client.delete_collection(self._store._collection.name)

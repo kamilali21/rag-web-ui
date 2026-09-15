@@ -1,5 +1,6 @@
 import json
 import base64
+import logging
 from typing import List, AsyncGenerator
 from sqlalchemy.orm import Session
 from langchain_openai import ChatOpenAI
@@ -10,13 +11,13 @@ from langchain_core.messages import HumanMessage, AIMessage
 from app.core.config import settings
 from app.models.chat import Message
 from app.models.knowledge import KnowledgeBase, Document
-from langchain.globals import set_verbose, set_debug
+from langchain.retrievers.merger_retriever import MergerRetriever
 from app.services.vector_store import VectorStoreFactory
 from app.services.embedding.embedding_factory import EmbeddingsFactory
 from app.services.llm.llm_factory import LLMFactory
 
-set_verbose(True)
-set_debug(True)
+# Added by ChatGPT: retrieved private text must not be printed by global chain debugging.
+logger = logging.getLogger(__name__)
 
 async def generate_response(
     query: str,
@@ -65,7 +66,6 @@ async def generate_response(
                     collection_name=f"kb_{kb.id}",
                     embedding_function=embeddings,
                 )
-                print(f"Collection {f'kb_{kb.id}'} count:", vector_store._store._collection.count())
                 vector_stores.append(vector_store)
         
         if not vector_stores:
@@ -76,8 +76,9 @@ async def generate_response(
             db.commit()
             return
         
-        # Use first vector store for now
-        retriever = vector_stores[0].as_retriever()
+        # Added by ChatGPT: reuse LangChain's merger so all selected collections contribute.
+        retrievers = [store.as_retriever() for store in vector_stores]
+        retriever = retrievers[0] if len(retrievers) == 1 else MergerRetriever(retrievers=retrievers)
         
         # Initialize the language model
         llm = LLMFactory.create()
@@ -143,16 +144,16 @@ async def generate_response(
 
         # Generate response
         chat_history = []
-        for message in messages["messages"]:
+        # Added by ChatGPT: the current question is already supplied as input, not history.
+        for message in messages["messages"][:-1]:
             if message["role"] == "user":
                 chat_history.append(HumanMessage(content=message["content"]))
             elif message["role"] == "assistant":
                 # if include __LLM_RESPONSE__, only use the last part
-                if "__LLM_RESPONSE__" in message["content"]:
-                    message["content"] = message["content"].split("__LLM_RESPONSE__")[-1]
-                chat_history.append(AIMessage(content=message["content"]))
+                content = message["content"].split("__LLM_RESPONSE__")[-1]
+                chat_history.append(AIMessage(content=content))
 
-            full_response = ""
+        full_response = ""
 
         # 1. Retrieve the relevant documents first.
         # This avoids the LangChain streaming issue where the QA chain
@@ -209,11 +210,15 @@ async def generate_response(
         # Update bot message content
         bot_message.content = full_response
         db.commit()
+        # Added by ChatGPT: explicitly complete the existing Vercel streaming protocol.
+        yield 'd:{"finishReason":"stop"}\n'
             
     except Exception as e:
-        error_message = f"Error generating response: {str(e)}"
-        print(error_message)
-        yield '3:{text}\n'.format(text=error_message)
+        # Added by ChatGPT: rollback failed transactions and keep provider internals private.
+        db.rollback()
+        logger.error("Chat generation failed (%s)", type(e).__name__)
+        error_message = "Unable to generate a response. Please try again."
+        yield f'3:{json.dumps(error_message)}\n'
         
         # Update bot message with error
         if 'bot_message' in locals():
