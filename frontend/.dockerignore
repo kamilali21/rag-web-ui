@@ -1,0 +1,8 @@
+node_modules
+.next
+.next-preview
+.next-check
+*.tsbuildinfo
+out
+.env*
+coverage

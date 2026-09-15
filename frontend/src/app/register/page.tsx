@@ -104,8 +104,9 @@ export default function RegisterPage() {
     }
   };
 
+  // Added by ChatGPT: registration inherits the same reference palette and control shapes.
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+    <main className="auth-page">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-lg shadow-md p-8 space-y-6">
           <div className="text-center">

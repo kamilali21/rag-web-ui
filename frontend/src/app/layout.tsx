@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import "highlight.js/styles/github.css";
 // 如果使用 App Router
 import { Toaster } from "@/components/ui/toaster";
 
-const inter = Inter({ subsets: ["latin"] });
+// Added by ChatGPT: use the reference's compact sans-serif through the local CSS font stack.
 
 export const metadata: Metadata = {
   title: "RAG Web UI",
@@ -19,7 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body>
         {children}
         <Toaster />
       </body>

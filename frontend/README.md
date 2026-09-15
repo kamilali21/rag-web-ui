@@ -1,3 +1,32 @@
+<!-- Added by ChatGPT: reference design implementation and local verification notes. -->
+## Reference UI Update
+
+The frontend now uses the supplied forest-green, lime, and warm-white Library design.
+Added or replaced implementation blocks are marked with `Added by ChatGPT` comments.
+
+- Library and collection pages use real private knowledge-base documents.
+- Public remains unavailable until a shared-corpus backend is implemented.
+- Papers, Theses, and Reports are filename filters; the backend does not yet supply academic document types.
+- Collection management, upload/preview/process, and existing chat routes remain available.
+- Small screens use a keyboard-accessible navigation drawer and stacked document rows.
+
+With the existing Docker stack running on port 80, start an isolated frontend preview:
+
+```bash
+RAG_NEXT_DIST_DIR=.next-preview RAG_API_PROXY_URL=http://127.0.0.1 npm run dev -- --hostname 127.0.0.1 --port 3001
+```
+
+Open [Library](http://127.0.0.1:3001/dashboard/knowledge). Sign in normally; this port has its own browser storage.
+The optional API proxy affects only this frontend preview. Docker still uses its Nginx routing.
+The reference image's decorative browser frame is not rendered inside the application.
+
+Verification commands:
+
+```bash
+npm run test:ci -- --runInBand
+RAG_NEXT_DIST_DIR=.next-check npm run build
+```
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -18,7 +47,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+<!-- Added by ChatGPT: typography follows the reference without a network font download. -->
+The frontend uses the local Arial/Helvetica sans-serif stack defined in `src/app/globals.css`.
 
 ## Learn More
 

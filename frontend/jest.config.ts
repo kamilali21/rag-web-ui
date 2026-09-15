@@ -1,5 +1,6 @@
 import type { Config } from 'jest'
-import nextJest from 'next/jest'
+// Added by ChatGPT: explicit extension supports this project's Node ESM test runner.
+import nextJest from 'next/jest.js'
 
 const createJestConfig = nextJest({
   // Provide the path to your Next.js app to load next.config.js and .env files in your test environment
@@ -10,6 +11,8 @@ const createJestConfig = nextJest({
 const config: Config = {
   coverageProvider: 'v8',
   testEnvironment: 'jsdom',
+  // Added by ChatGPT: generated standalone builds are not additional application/test modules.
+  modulePathIgnorePatterns: ['<rootDir>/.next-check/', '<rootDir>/.next-preview/'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

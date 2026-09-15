@@ -1,25 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Book, MessageSquare, LogOut, Menu, User } from "lucide-react";
+import { Book, BookOpen, Home, LogOut, Menu, MessageSquare, Sparkles, User } from "lucide-react";
 import Breadcrumb from "@/components/ui/breadcrumb";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+// Added by ChatGPT: shared navigation for the reference sidebar and accessible mobile drawer.
+const navigation = [
+  { name: "Dashboard", href: "/dashboard", icon: Home },
+  { name: "Library", href: "/dashboard/knowledge", icon: Book },
+  { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
+  // Added by ChatGPT: frontend research workspace in desktop and mobile navigation.
+  { name: "Insights", href: "/dashboard/insights", icon: Sparkles },
+  { name: "API Keys", href: "/dashboard/api-keys", icon: User },
+];
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-    }
+    if (!localStorage.getItem("token")) router.replace("/login");
   }, [router]);
 
   const handleLogout = () => {
@@ -27,116 +31,62 @@ export default function DashboardLayout({
     router.push("/login");
   };
 
-  const navigation = [
-    { name: "Knowledge Base", href: "/dashboard/knowledge", icon: Book },
-    { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
-    { name: "API Keys", href: "/dashboard/api-keys", icon: User },
-  ];
+  // Added by ChatGPT: retain authentication and route behavior in both navigation layouts.
+  const sidebar = (
+    <>
+      <Link href="/dashboard" className="app-brand" onClick={() => setMenuOpen(false)}>
+        {/* Added by ChatGPT: outlined RAG wordmark follows the supplied reference. */}
+        <span className="app-brand-mark" aria-hidden="true"><BookOpen size={38} strokeWidth={1} /><span>RAG</span></span>
+        <span>RAG Web UI</span>
+      </Link>
+      <nav aria-label="Main navigation" className="app-navigation">
+        {navigation.map(({ name, href, icon: Icon }) => {
+          const active = href === "/dashboard" ? pathname === href :
+            pathname.startsWith(href) || (name === "Library" && pathname.startsWith("/dashboard/test-retrieval"));
+          return (
+            <Link key={href} href={href} aria-current={active ? "page" : undefined}
+              className={`app-nav-link${active ? " is-active" : ""}`} onClick={() => setMenuOpen(false)}>
+              <Icon size={24} strokeWidth={1.6} aria-hidden="true" />
+              <span>{name}</span>
+            </Link>
+          );
+        })}
+      </nav>
+      <button className="app-nav-link app-signout" onClick={handleLogout}>
+        <LogOut size={24} strokeWidth={1.6} aria-hidden="true" /> Sign out
+      </button>
+    </>
+  );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-0 left-0 m-4 z-50">
-        <button
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 rounded-md bg-primary text-primary-foreground"
-        >
-          <Menu className="h-6 w-6" />
-        </button>
-      </div>
-
-      {/* Sidebar */}
-      <div
-        className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-card border-r transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex h-full flex-col">
-          {/* Sidebar header */}
-          <div className="flex h-16 items-center border-b pl-8">
-            <Link
-              href="/dashboard"
-              className="flex items-center text-lg font-semibold hover:text-primary transition-colors"
-            >
-              <img
-                src="/logo.svg"
-                alt="Logo"
-                className="w-16 h-16 rounded-lg"
-              />
-              RAG Web UI
-            </Link>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 space-y-2 px-4 py-6">
-            {navigation.map((item) => {
-              const isActive = pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`group flex items-center rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? "bg-gradient-to-r from-primary/10 to-primary/5 text-primary shadow-sm"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground hover:shadow-sm"
-                  }`}
-                >
-                  <item.icon
-                    className={`mr-3 h-5 w-5 transition-transform duration-200 ${
-                      isActive
-                        ? "text-primary scale-110"
-                        : "group-hover:scale-110"
-                    }`}
-                  />
-                  <span className="font-medium">{item.name}</span>
-                  {isActive && (
-                    <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-          {/* User profile and logout */}
-          <div className="border-t p-4 space-y-4">
-            <button
-              onClick={handleLogout}
-              className="flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors duration-200"
-            >
-              <LogOut className="mr-3 h-4 w-4" />
-              Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="lg:pl-64">
-        <main className="min-h-screen py-6 px-4 sm:px-6 lg:px-8">
-          <Breadcrumb />
-          {children}
-        </main>
-      </div>
+    <div className="app-shell">
+      {/* Added by ChatGPT: Radix manages focus trapping, Escape, and return focus on mobile. */}
+      <a href="#main-content" className="skip-link">Skip to content</a>
+      <aside className="app-sidebar">{sidebar}</aside>
+      <header className="app-mobile-header">
+        <span>RAG Web UI</span>
+        <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
+          <DialogTrigger asChild>
+            <button className="icon-button" aria-label="Open navigation" title="Open navigation"><Menu /></button>
+          </DialogTrigger>
+          <DialogContent className="mobile-navigation" aria-describedby={undefined}>
+            <DialogTitle className="sr-only">Navigation</DialogTitle>
+            {sidebar}
+          </DialogContent>
+        </Dialog>
+      </header>
+      <main id="main-content" className="app-main" tabIndex={-1}>
+        <Breadcrumb />
+        {children}
+      </main>
     </div>
   );
 }
 
+// Added by ChatGPT: preserve the exported configuration for existing consumers.
 export const dashboardConfig = {
   mainNav: [],
-  sidebarNav: [
-    {
-      title: "Knowledge Base",
-      href: "/dashboard/knowledge",
-      icon: "database",
-    },
-    {
-      title: "Chat",
-      href: "/dashboard/chat",
-      icon: "messageSquare",
-    },
-    {
-      title: "API Keys",
-      href: "/dashboard/api-keys",
-      icon: "key",
-    },
-  ],
+  sidebarNav: navigation.map(({ name, href }) => ({
+    title: name, href, icon: name === "Library" ? "database" : name === "Chat" ? "messageSquare" : name === "Insights" ? "sparkles" : name === "Dashboard" ? "home" : "key",
+  })),
 };

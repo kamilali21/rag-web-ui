@@ -72,13 +72,14 @@ export default function ChatPage() {
     chat.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Added by ChatGPT: unframed conversation header uses the shared Library design language.
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="bg-card rounded-lg shadow-sm p-6">
+        <div>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              <h2 className="text-3xl font-bold">
                 Your Conversations
               </h2>
               <p className="text-muted-foreground mt-1">
@@ -87,7 +88,8 @@ export default function ChatPage() {
             </div>
             <Link
               href="/dashboard/chat/new"
-              className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors duration-200 shadow-sm hover:shadow-md"
+              // Added by ChatGPT: rotating glow without changing new-chat navigation.
+              className="primary-action premium-action"
             >
               <Plus className="mr-2 h-4 w-4" />
               Start New Chat
@@ -96,13 +98,14 @@ export default function ChatPage() {
 
           <div className="mt-6 relative">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-foreground" />
               <input
                 type="text"
+                aria-label="Search conversations"
                 placeholder="Search conversations..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-full border bg-background/50 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
+                className="w-full pl-12 pr-4 py-3 rounded-full border-0 bg-muted placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20"
               />
             </div>
           </div>
@@ -157,7 +160,7 @@ export default function ChatPage() {
         </div>
 
         {chats.length === 0 && (
-          <div className="text-center py-16 bg-card rounded-lg border">
+          <div className="text-center py-16">
             <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground/50" />
             <h3 className="mt-4 text-lg font-medium text-foreground">
               No conversations yet
