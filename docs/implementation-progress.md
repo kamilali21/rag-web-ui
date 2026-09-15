@@ -13,7 +13,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 0 - Blocked At Live LLM Authentication
+## Current Gate: Phase 1 - Schema Foundation
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
@@ -21,8 +21,8 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Existing database revision: `3580c0dcd005`.
 - Initial counts: 2 users, 2 knowledge bases, 4 documents, 190 chunks, 1 chat.
 - Actual configured providers: OpenAI-compatible chat, HuggingFace embeddings, Chroma vectors.
-- Baseline completion requires a real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup.
-- Also requires frontend/backend regression tests and review of baseline failures.
+- Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
+- Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
 - No new ResearchIQ schema or OTP/public corpus endpoints are implemented yet.
 
 ### Verified On 15 September 2026
@@ -36,11 +36,11 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Database backup: ignored local file `.local/backups/baseline-20260915.sql`, restricted directory and file permissions. No schema migration has been applied.
 - Source fixes are loaded by the existing backend container; no temporary server or changed port.
 
-### Required Next Action
+### Phase 0 Completion
 
-The user must provide valid credentials through `rag-web-ui/.env` (`OPENAI_API_KEY` for the configured OpenRouter endpoint), or select a different configured provider. Do not print secrets or silently switch providers.
+The user updated the OpenRouter key, and the backend was recreated to load it. On 15 September 2026 the complete live acceptance test passed, including citation indices resolving to the synthetic document and page, saved answer verification and cleanup. The earlier 401 failure is resolved.
 
-After credentials are updated, recreate only the backend service so Compose rereads its environment; a plain restart does not reload `env_file` values. Verify startup, rerun the synthetic acceptance check, inspect citation mapping and persistence, then record the Phase 0 checkpoint. Do not begin Phase 1 until that succeeds.
+Next: implement additive schema migrations, test upgrade/downgrade on disposable MySQL data, refresh the database backup, apply the verified migrations and rerun baseline acceptance before Phase 2.
 
 ### Repeatable Checks
 
@@ -87,7 +87,7 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 - Historical vectors may still use generated IDs. Before per-document deletion/reindexing, reconcile existing Chroma IDs through chunk metadata; do not assume new insert behavior repairs old vectors.
 - Ingestion retries, partial failures, repeated chunks, processing-state filters and publication need attention before public corpus support.
 - Embedding models are reconstructed for each call, causing repeated HuggingFace requests and avoidable latency. Add bounded, concurrency-safe reuse when stabilizing ingestion/retrieval.
-- A mocked chain verifies multi-collection streaming and serialization, but is not a substitute for the currently blocked real LLM acceptance test.
+- Multi-collection streaming is covered by deterministic regression tests; the live single-PDF acceptance path also passed with the configured provider.
 
 ## Remaining Sequential Gates
 
