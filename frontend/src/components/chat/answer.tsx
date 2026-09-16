@@ -18,6 +18,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { api } from "@/lib/api";
 import { FileIcon } from "react-file-icon";
+import { remarkCitations } from "@/lib/citations";
 
 // Debounce hook to prevent rapid state updates during streaming
 const useDebouncedValue = <T,>(value: T, delay: number): T => {
@@ -120,13 +121,15 @@ export const Answer: FC<{
         props: ClassAttributes<HTMLAnchorElement> &
           AnchorHTMLAttributes<HTMLAnchorElement>
       ) => {
-        const citationId = props.href?.match(/^(\d+)$/)?.[1];
+        // Added by ChatGPT: support normalized markers and existing saved numeric citation links.
+        const citationId = props.href?.match(/^(?:#citation-)?(\d+)$/)?.[1];
         const citation = citationId
-          ? debouncedCitations[parseInt(citationId) - 1]
+          ? citations.find((item) => item.id === Number(citationId))
           : null;
 
         if (!citation) {
-          return <a>[{props.href}]</a>;
+          return citationId ? <span title="Source unavailable">[{citationId}]</span> :
+            <a href={props.href} className="text-blue-600 underline">{props.children}</a>;
         }
 
         const citationInfo =
@@ -137,14 +140,13 @@ export const Answer: FC<{
         return (
           <Popover>
             <PopoverTrigger asChild>
-              <a
-                {...props}
-                href="#"
-                role="button"
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors relative"
+              <button
+                type="button"
+                aria-label={`Source ${citationId}`}
+                className="inline-flex min-w-6 items-center justify-center px-1 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors align-baseline"
               >
-                <span className="absolute -top-3 -right-1">[{props.href}]</span>
-              </a>
+                [{citationId}]
+              </button>
             </PopoverTrigger>
             <PopoverContent
               side="top"
@@ -171,28 +173,15 @@ export const Answer: FC<{
                 )}
                 <Divider />
                 <p className="text-gray-700 leading-relaxed">{citation.text}</p>
-                <Divider />
-                {Object.keys(citation.metadata).length > 0 && (
-                  <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                    <div className="font-medium mb-2">Debug Info:</div>
-                    <div className="space-y-1">
-                      {Object.entries(citation.metadata).map(([key, value]) => (
-                        <div key={key} className="flex">
-                          <span className="font-medium min-w-[100px]">
-                            {key}:
-                          </span>
-                          <span className="text-gray-600">{String(value)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* Added by ChatGPT: show source location without exposing internal storage metadata. */}
+                {Number.isInteger(citation.metadata.page) && citation.metadata.page >= 0 &&
+                  <p className="text-xs text-gray-500">Page {citation.metadata.page + 1}</p>}
               </div>
             </PopoverContent>
           </Popover>
         );
       },
-    [debouncedCitations, citationInfoMap]
+    [citations, citationInfoMap]
   );
 
   if (!markdown) {
@@ -210,7 +199,7 @@ export const Answer: FC<{
   return (
     <div className="prose prose-sm max-w-full">
       <Markdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, [remarkCitations, { citationIds: citations.map((citation) => citation.id) }]]}
         rehypePlugins={[rehypeHighlight]}
         components={{
           a: CitationLink,
