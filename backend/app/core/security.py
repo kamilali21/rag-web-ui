@@ -13,7 +13,10 @@ from app.services.api_key import APIKeyService
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login/access-token")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
+    # Added by ChatGPT: OTP-only identities must fail password login without crashing.
+    if not hashed_password:
+        return False
     return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 def get_password_hash(password: str) -> str:
@@ -81,4 +84,4 @@ def get_api_key_user(
         )
     
     APIKeyService.update_last_used(db=db, api_key=api_key_obj)
-    return api_key_obj.user 
+    return api_key_obj.user

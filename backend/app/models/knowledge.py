@@ -12,6 +12,13 @@ class KnowledgeBase(Base, TimestampMixin):
     name = Column(String(255), nullable=False)
     description = Column(LONGTEXT)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # Added by ChatGPT: existing ownership remains private unless explicitly provisioned as system public.
+    scope = Column(String(7), nullable=False, default="private", server_default="private")
+    is_system_managed = Column(sa.Boolean, nullable=False, default=False, server_default=sa.text("0"))
+    __table_args__ = (
+        sa.Index("ix_knowledge_bases_scope_owner", "scope", "user_id", "id"),
+        sa.CheckConstraint("(scope = 'private' AND is_system_managed = 0) OR (scope = 'public' AND is_system_managed = 1)", name="ck_kb_scope_management"),
+    )
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -39,6 +46,8 @@ class Document(Base, TimestampMixin):
     knowledge_base = relationship("KnowledgeBase", back_populates="documents") 
     processing_tasks = relationship("ProcessingTask", back_populates="document")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
+    # Added by ChatGPT: one metadata record per original document, deleted with that document.
+    academic_metadata = relationship("AcademicDocumentMetadata", back_populates="document", uselist=False, cascade="all, delete-orphan")
 
     __table_args__ = (
         # Ensure file_name is unique within each knowledge base
@@ -94,4 +103,4 @@ class DocumentChunk(Base, TimestampMixin):
 
     __table_args__ = (
         sa.Index('idx_kb_file_name', 'kb_id', 'file_name'),
-    ) 
+    )
