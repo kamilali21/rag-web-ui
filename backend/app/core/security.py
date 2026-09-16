@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
 from app.services.api_key import APIKeyService
+from app.services.authorization import require_active_user, require_admin
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login/access-token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
@@ -44,7 +45,7 @@ def get_current_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
-        if username is None:
+        if not isinstance(username, str) or not username:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
@@ -52,13 +53,15 @@ def get_current_user(
     user = db.query(User).filter(User.username == username).first()
     if user is None:
         raise credentials_exception
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive user",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user 
+    # Added by ChatGPT: system identities cannot authenticate through any credential type.
+    return require_active_user(user)
+
+
+def get_current_admin(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> User:
+    # Added by ChatGPT: role/allowlist revocations take effect on the next request.
+    return require_admin(db, current_user)
 
 def get_api_key_user(
     db: Session = Depends(get_db),
@@ -83,5 +86,6 @@ def get_api_key_user(
             detail="Inactive API key",
         )
     
+    user = require_active_user(api_key_obj.user)
     APIKeyService.update_last_used(db=db, api_key=api_key_obj)
-    return api_key_obj.user
+    return user

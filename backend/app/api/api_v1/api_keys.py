@@ -39,7 +39,8 @@ def create_api_key(
     api_key = APIKeyService.create_api_key(
         db=db, user_id=current_user.id, name=api_key_in.name
     )
-    logger.info(f"API key created: {api_key.key} for user {current_user.id}")
+    # Added by ChatGPT: log identifiers, never reusable authentication secrets.
+    logger.info("API key %s created for user %s", api_key.id, current_user.id)
     return api_key
 
 @router.put("/{id}", response_model=schemas.APIKey)
@@ -60,7 +61,7 @@ def update_api_key(
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     api_key = APIKeyService.update_api_key(db=db, api_key=api_key, update_data=api_key_in)
-    logger.info(f"API key updated: {api_key.key} for user {current_user.id}")
+    logger.info("API key %s updated for user %s", api_key.id, current_user.id)
     return api_key
 
 @router.delete("/{id}", response_model=schemas.APIKey)
@@ -80,5 +81,5 @@ def delete_api_key(
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     APIKeyService.delete_api_key(db=db, api_key=api_key)
-    logger.info(f"API key deleted: {api_key.key} for user {current_user.id}")
+    logger.info("API key %s deleted for user %s", api_key.id, current_user.id)
     return api_key

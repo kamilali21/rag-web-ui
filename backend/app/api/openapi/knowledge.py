@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.core.security import get_api_key_user
 from app.core.config import settings
 from app.services.embedding.embedding_factory import EmbeddingsFactory
+from app.services.authorization import require_private_knowledge_base
 
 router = APIRouter()
 
@@ -25,16 +26,8 @@ def query_knowledge_base(
     Query a specific knowledge base using API key authentication
     """
     try:
-        kb = db.query(models.KnowledgeBase).filter(
-            models.KnowledgeBase.id == knowledge_base_id,
-            models.KnowledgeBase.user_id == current_user.id
-        ).first()
-        
-        if not kb:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Knowledge base {knowledge_base_id} not found",
-            )
+        # Added by ChatGPT: API keys obey the same private ownership policy as JWTs.
+        require_private_knowledge_base(db, current_user, knowledge_base_id)
         
         embeddings = EmbeddingsFactory.create()
         
@@ -56,5 +49,7 @@ def query_knowledge_base(
             
         return {"results": response}
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Retrieval unavailable")

@@ -23,7 +23,7 @@ def test_chat_retrieves_all_selected_collections_and_persists_the_stream():
 
     db = MagicMock()
     db.query.return_value.filter.return_value.all.side_effect = [
-        [SimpleNamespace(id=11), SimpleNamespace(id=12)], [object()], [object()]
+        [object()], [object()]
     ]
     stores = []
     for kb_id in [11, 12]:
@@ -37,10 +37,13 @@ def test_chat_retrieves_all_selected_collections_and_persists_the_stream():
 
     async def collect():
         return [part async for part in chat_service.generate_response(
-            "Compare irrigation.", messages, [11, 12], 1, db
+            "Compare irrigation.", messages, [11, 12], 1, db, SimpleNamespace(id=3)
         )]
 
-    with patch.object(chat_service.EmbeddingsFactory, "create"), patch.object(
+    # Added by ChatGPT: isolate this RAG contract; Phase 2 tests exercise real authorization separately.
+    with patch.object(chat_service, "require_chat_sources", return_value=[
+        SimpleNamespace(id=11), SimpleNamespace(id=12)
+    ]), patch.object(chat_service.EmbeddingsFactory, "create"), patch.object(
         chat_service.VectorStoreFactory, "create", side_effect=stores
     ), patch.object(chat_service.LLMFactory, "create", return_value=FakeListChatModel(
         responses=["Irrigation results differ. [citation:1][citation:2]"]
@@ -64,10 +67,13 @@ def test_chat_failure_is_a_valid_json_stream_frame_without_internal_error_detail
 
     async def collect():
         return [part async for part in chat_service.generate_response(
-            "Question", {"messages": [{"role": "user", "content": "Question"}]}, [11], 1, db
+            "Question", {"messages": [{"role": "user", "content": "Question"}]}, [11], 1, db, SimpleNamespace(id=3)
         )]
 
-    frames = asyncio.run(collect())
+    with patch.object(chat_service, "require_chat_sources", return_value=[SimpleNamespace(id=11)]), patch.object(
+        chat_service.EmbeddingsFactory, "create"
+    ):
+        frames = asyncio.run(collect())
     assert isinstance(json.loads(frames[-1][2:]), str)
     assert "secret" not in frames[-1]
     db.rollback.assert_called()
@@ -100,7 +106,9 @@ def test_collection_deletion_uses_store_contract_and_recursive_object_cleanup():
     db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(documents=[])
     store, minio = MagicMock(), MagicMock()
     minio.list_objects.return_value = [SimpleNamespace(object_name="kb_71/temp/fixture.pdf")]
-    with patch.object(knowledge_base, "get_minio_client", return_value=minio), patch.object(
+    with patch.object(knowledge_base, "require_private_knowledge_base", return_value=SimpleNamespace(documents=[])), patch.object(
+        knowledge_base, "get_minio_client", return_value=minio
+    ), patch.object(
         knowledge_base.EmbeddingsFactory, "create"
     ), patch.object(knowledge_base.VectorStoreFactory, "create", return_value=store):
         result = asyncio.run(knowledge_base.delete_knowledge_base(

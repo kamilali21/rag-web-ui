@@ -1,11 +1,10 @@
 from typing import List, Any
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
 from app.models.chat import Chat, Message
-from app.models.knowledge import KnowledgeBase
 from app.schemas.chat import (
     ChatCreate,
     ChatResponse,
@@ -15,6 +14,9 @@ from app.schemas.chat import (
 )
 from app.core.security import get_current_user
 from app.services.chat_service import generate_response
+from app.services.authorization import (
+    private_chat_filter, require_private_chat, require_private_knowledge_bases,
+)
 
 router = APIRouter()
 
@@ -25,20 +27,8 @@ def create_chat(
     chat_in: ChatCreate,
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    # Verify knowledge bases exist and belong to user
-    knowledge_bases = (
-        db.query(KnowledgeBase)
-        .filter(
-            KnowledgeBase.id.in_(chat_in.knowledge_base_ids),
-            KnowledgeBase.user_id == current_user.id
-        )
-        .all()
-    )
-    if len(knowledge_bases) != len(chat_in.knowledge_base_ids):
-        raise HTTPException(
-            status_code=400,
-            detail="One or more knowledge bases not found"
-        )
+    # Added by ChatGPT: validate all sources before storing a chat association.
+    knowledge_bases = require_private_knowledge_bases(db, current_user, chat_in.knowledge_base_ids)
     
     chat = Chat(
         title=chat_in.title,
@@ -60,7 +50,7 @@ def get_chats(
 ) -> Any:
     chats = (
         db.query(Chat)
-        .filter(Chat.user_id == current_user.id)
+        .filter(private_chat_filter(current_user))
         .offset(skip)
         .limit(limit)
         .all()
@@ -74,17 +64,7 @@ def get_chat(
     chat_id: int,
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    chat = (
-        db.query(Chat)
-        .filter(
-            Chat.id == chat_id,
-            Chat.user_id == current_user.id
-        )
-        .first()
-    )
-    if not chat:
-        raise HTTPException(status_code=404, detail="Chat not found")
-    return chat
+    return require_private_chat(db, current_user, chat_id)
 
 @router.post("/{chat_id}/messages")
 async def create_message(
@@ -94,17 +74,8 @@ async def create_message(
     messages: dict,
     current_user: User = Depends(get_current_user)
 ) -> StreamingResponse:
-    chat = (
-        db.query(Chat)
-        .options(joinedload(Chat.knowledge_bases))
-        .filter(
-            Chat.id == chat_id,
-            Chat.user_id == current_user.id
-        )
-        .first()
-    )
-    if not chat:
-        raise HTTPException(status_code=404, detail="Chat not found")
+    # Added by ChatGPT: revalidate saved associations before entering an HTTP stream.
+    chat = require_private_chat(db, current_user, chat_id)
     
     # Get the last user message
     last_message = messages["messages"][-1]
@@ -120,7 +91,8 @@ async def create_message(
             messages=messages,
             knowledge_base_ids=knowledge_base_ids,
             chat_id=chat_id,
-            db=db
+            db=db,
+            current_user=current_user,
         ):
             yield chunk
 

@@ -10,11 +10,13 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, Prom
 from langchain_core.messages import HumanMessage, AIMessage
 from app.core.config import settings
 from app.models.chat import Message
-from app.models.knowledge import KnowledgeBase, Document
+from app.models.knowledge import Document
 from langchain.retrievers.merger_retriever import MergerRetriever
 from app.services.vector_store import VectorStoreFactory
 from app.services.embedding.embedding_factory import EmbeddingsFactory
 from app.services.llm.llm_factory import LLMFactory
+from app.models.user import User
+from app.services.authorization import require_chat_sources
 
 # Added by ChatGPT: retrieved private text must not be printed by global chain debugging.
 logger = logging.getLogger(__name__)
@@ -24,8 +26,11 @@ async def generate_response(
     messages: dict,
     knowledge_base_ids: List[int],
     chat_id: int,
-    db: Session
+    db: Session,
+    current_user: User,
 ) -> AsyncGenerator[str, None]:
+    # Added by ChatGPT: fail before persistence, vectors or providers, including direct service callers.
+    knowledge_bases = require_chat_sources(db, current_user, chat_id, knowledge_base_ids)
     try:
         # Create user message
         user_message = Message(
@@ -44,13 +49,6 @@ async def generate_response(
         )
         db.add(bot_message)
         db.commit()
-        
-        # Get knowledge bases and their documents
-        knowledge_bases = (
-            db.query(KnowledgeBase)
-            .filter(KnowledgeBase.id.in_(knowledge_base_ids))
-            .all()
-        )
         
         # Initialize embeddings
         embeddings = EmbeddingsFactory.create()

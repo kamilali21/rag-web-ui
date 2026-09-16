@@ -13,17 +13,51 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 1 Complete - Stopped Before Phase 2
+## Current Gate: Phase 2 Complete - Stopped Before Phase 3
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
-- Running services: backend, frontend, MySQL, Chroma, MinIO, Nginx.
+- Deployment services: backend, frontend, MySQL, Chroma, MinIO, Nginx. All application containers were stopped when Phase 2 began; they were not started or reconfigured during this work.
 - Original database revision: `3580c0dcd005`; current revision: `riq_003`.
 - Initial counts: 2 users, 2 knowledge bases, 4 documents, 190 chunks, 1 chat.
 - Actual configured providers: OpenAI-compatible chat, HuggingFace embeddings, Chroma vectors.
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
-- Phase 1 schema is implemented, applied and verified end to end. No OTP/public corpus endpoints are activated. Stop here as requested; do not start Phase 2 without a new instruction.
+- Phase 1 schema is implemented, applied and verified end to end. Phase 2 was explicitly authorized in the subsequent request and is now implemented and tested below. No SMTP OTP or public-catalog features are activated; stop before Phase 3.
+
+### Phase 2 Authorization Core - 16 September 2026
+
+<!-- Added by ChatGPT: scoped implementation, policy decisions and repeatable evidence. -->
+
+- Starting checkpoint: `ad733e4`, the user's Chroma persistence fix (`chroma_data:/data`). The user reports `kb_1`/`kb_2` rebuilt and working. Docker configuration, Chroma/indexing code, migrations, existing data and `.env` were left unchanged.
+- Existing uncommitted frontend citation changes and three unrelated untracked root files were preserved and excluded from the Phase 2 commit.
+- Added `app/services/authorization.py`: normalized exact-email matching, active-human validation, effective Researcher/Admin roles, researcher assignment for new registrations, reusable private KB/document/chat filters and guards, and an institutional-corpus administrator guard.
+- Effective content admin requires BOTH an explicit `user_roles` admin assignment AND an active exact normalized `admin_allowlist` entry. University domains, client-supplied roles, JWT role claims and `is_superuser` alone never grant content-admin privileges. Runtime role/allowlist checks are not cached in a token; removal/deactivation takes effect on the next request.
+- This dual requirement is intentional: legacy password registration has no verified-email proof, so allowlisting alone would let someone claim a professor's email. Only a trusted out-of-band role assignment can satisfy the second condition until verified identity provisioning is implemented later. No role-management endpoint or automatic admin promotion was added.
+- Existing active users without a role row keep baseline researcher permissions without a data backfill. New password registrations atomically receive the existing researcher role; no existing account/role/allowlist data was modified.
+- JWT, password and API-key authentication reject inactive/system accounts. JWT subjects must be nonempty strings. API keys are checked against their current owner's state before last-use updates. API-key logs no longer print reusable secrets. The OAuth2 documentation now points to the existing `/api/auth/token` route.
+- Private KB reads/updates/deletes, upload/preview/processing/task access, document details, JWT/API-key retrieval and chat creation now share ownership/scope rules. Missing and unauthorized research resources return 404; retrieval handlers preserve authorization errors instead of converting them to 500.
+- Admin and superuser flags never bypass another user's private ownership. Temporary-file cleanup is limited to the caller's private uploads. Nested document/upload/task IDs stay constrained to the authorized collection.
+- Saved-chat reads/listing reject invalid foreign-source associations. Chat streaming rechecks sources at the endpoint and again in the RAG service, before message persistence, embeddings, vectors or LLM calls. The service requires the actor and the exact chat source set. Existing collection naming, retrieval merger and citation stream format are unchanged.
+- `get_current_admin` is reusable by future protected routes. `require_corpus_admin` requires a public, system-managed KB owned by an inactive, non-superuser system identity without a password. It provides authorization only: no system user/corpus was created, and legacy routes remain private-only. Public catalog, admin ingestion UI and published-document retrieval remain later phases.
+
+#### Verification And Limits
+
+- **49 tests passed on SQLite and again on MySQL 8**: 27 Phase 2 checks plus 22 baseline RAG/provider regressions. MySQL tests used the existing migration chain through `riq_003` in a disposable RAM-backed database, without touching persistent deployment volumes.
+- HTTP tests use real JWT authentication, dependencies, routes and ORM operations. They cover explicit-role/allowlist conjunction, revocation using the same token, email/domain/alias boundaries, self-promotion attempts, disabled/system accounts, private ID guessing by researchers/admins/superusers, nested IDs, cleanup isolation and API-key access.
+- A permitted two-collection HTTP chat passed the actual authorization and RAG service path, streamed valid citations and persisted the answer. External embeddings/vector/LLM providers were deterministic test doubles; denied requests were verified not to reach providers or write messages.
+- The first test pass exposed incorrect test URLs for the existing API-key route (`/openapi/knowledge`, not `/openapi/knowledge-base`); those fixtures were corrected. Final SQLite and MySQL runs passed without failures. Existing dependency deprecation warnings remain unrelated to this phase.
+- No live OpenRouter/Chroma acceptance run or deployment restart was performed: application containers were stopped, and this request forbids changes to existing data. This checkpoint certifies Phase 2 code and isolated tests, not a new live-provider verification.
+- No schema change means no database downgrade is needed to reverse Phase 2 code. The pre-Phase-2 source checkpoint is `ad733e4`, which retains the Chroma persistence fix. Preserve unrelated working changes before any recovery operation.
+- Phase 3 and all later features are intentionally not started.
+
+From `backend/`, with development dependencies installed:
+
+```sh
+python -m pytest tests/test_phase2_authorization.py tests/test_baseline_regressions.py tests/test_minimax_unit.py -q
+```
+
+The authorization tests default to in-memory SQLite. Optional `PHASE2_TEST_DATABASE_URI` must target `127.0.0.1/researchiq_phase2_test`, initialized with Alembic at `riq_003`. This opt-in mode deletes test rows between fixtures and must only be used with a disposable schema; all other database names/hosts are refused. No production `.env` is needed for these tests.
 
 ### Citation Checkpoint - 16 September 2026
 
@@ -69,7 +103,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 The user updated the OpenRouter key, and the backend was recreated to load it. On 15 September 2026 the complete live acceptance test passed, including citation indices resolving to the synthetic document and page, saved answer verification and cleanup. The earlier 401 failure is resolved.
 
-That next gate is now completed in Phase 1. The next planned phase is authorization, but this run stops before starting it.
+That next gate completed in Phase 1. Authorization subsequently completed in the explicitly requested Phase 2 task; the next planned gate is Phase 3, which remains out of scope.
 
 ### Repeatable Checks
 
@@ -120,8 +154,8 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 
 ## Remaining Sequential Gates
 
-1. Schema foundation, migration reversal and data preservation.
-2. Authorization core and private access regression tests.
+1. Schema foundation, migration reversal and data preservation: completed in Phase 1.
+2. Authorization core and private access regression tests: completed in Phase 2, isolated verification only.
 3. SMTP OTP and secure revocable sessions, including real delivery verification.
 4. System-owned public corpus.
 5. Academic metadata.

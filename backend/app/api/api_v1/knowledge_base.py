@@ -28,6 +28,9 @@ from app.core.minio import get_minio_client
 from minio.error import MinioException
 from app.services.vector_store import VectorStoreFactory
 from app.services.embedding.embedding_factory import EmbeddingsFactory
+from app.services.authorization import (
+    private_kb_filter, require_private_document, require_private_knowledge_base,
+)
 
 router = APIRouter()
 
@@ -71,7 +74,7 @@ def get_knowledge_bases(
     """
     knowledge_bases = (
         db.query(KnowledgeBase)
-        .filter(KnowledgeBase.user_id == current_user.id)
+        .filter(private_kb_filter(current_user))
         .offset(skip)
         .limit(limit)
         .all()
@@ -98,7 +101,7 @@ def get_knowledge_base(
         )
         .filter(
             KnowledgeBase.id == kb_id,
-            KnowledgeBase.user_id == current_user.id
+            private_kb_filter(current_user)
         )
         .first()
     )
@@ -119,13 +122,7 @@ def update_knowledge_base(
     """
     Update knowledge base.
     """
-    kb = db.query(KnowledgeBase).filter(
-        KnowledgeBase.id == kb_id,
-        KnowledgeBase.user_id == current_user.id
-    ).first()
-    
-    if not kb:
-        raise HTTPException(status_code=404, detail="Knowledge base not found")
+    kb = require_private_knowledge_base(db, current_user, kb_id)
 
     for field, value in kb_in.dict(exclude_unset=True).items():
         setattr(kb, field, value)
@@ -148,16 +145,7 @@ async def delete_knowledge_base(
     """
     logger = logging.getLogger(__name__)
     
-    kb = (
-        db.query(KnowledgeBase)
-        .filter(
-            KnowledgeBase.id == kb_id,
-            KnowledgeBase.user_id == current_user.id
-        )
-        .first()
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="Knowledge base not found")
+    kb = require_private_knowledge_base(db, current_user, kb_id)
     
     try:
         # Get all document file paths before deletion
@@ -225,12 +213,7 @@ async def upload_kb_documents(
     """
     Upload multiple documents to MinIO.
     """
-    kb = db.query(KnowledgeBase).filter(
-        KnowledgeBase.id == kb_id,
-        KnowledgeBase.user_id == current_user.id
-    ).first()
-    if not kb:
-        raise HTTPException(status_code=404, detail="Knowledge base not found")
+    require_private_knowledge_base(db, current_user, kb_id)
     
     results = []
     for file in files:
@@ -306,12 +289,14 @@ async def preview_kb_documents(
     """
     Preview multiple documents' chunks.
     """
+    # Added by ChatGPT: authorize the collection before resolving document/upload IDs.
+    require_private_knowledge_base(db, current_user, kb_id)
     results = {}
     for doc_id in preview_request.document_ids:
         document = db.query(Document).join(KnowledgeBase).filter(
             Document.id == doc_id,
             Document.knowledge_base_id == kb_id,
-            KnowledgeBase.user_id == current_user.id
+            private_kb_filter(current_user)
         ).first()
         
         if document:
@@ -320,7 +305,7 @@ async def preview_kb_documents(
             upload = db.query(DocumentUpload).join(KnowledgeBase).filter(
                 DocumentUpload.id == doc_id,
                 DocumentUpload.knowledge_base_id == kb_id,
-                KnowledgeBase.user_id == current_user.id
+                private_kb_filter(current_user)
             ).first()
             
             if not upload:
@@ -350,13 +335,7 @@ async def process_kb_documents(
     """
     start_time = time.time()
     
-    kb = db.query(KnowledgeBase).filter(
-        KnowledgeBase.id == kb_id,
-        KnowledgeBase.user_id == current_user.id
-    ).first()
-    
-    if not kb:
-        raise HTTPException(status_code=404, detail="Knowledge base not found")
+    require_private_knowledge_base(db, current_user, kb_id)
     
     task_info = []
     upload_ids = []
@@ -447,8 +426,9 @@ async def cleanup_temp_files(
     Clean up expired temporary files.
     """
     expired_time = datetime.utcnow() - timedelta(hours=24)
-    expired_uploads = db.query(DocumentUpload).filter(
-        DocumentUpload.created_at < expired_time
+    # Added by ChatGPT: cleanup is never a cross-user administration shortcut.
+    expired_uploads = db.query(DocumentUpload).join(KnowledgeBase).filter(
+        DocumentUpload.created_at < expired_time, private_kb_filter(current_user)
     ).all()
     
     minio_client = get_minio_client()
@@ -479,13 +459,7 @@ async def get_processing_tasks(
     """
     task_id_list = [int(id.strip()) for id in task_ids.split(",")]
     
-    kb = db.query(KnowledgeBase).filter(
-        KnowledgeBase.id == kb_id,
-        KnowledgeBase.user_id == current_user.id
-    ).first()
-    
-    if not kb:
-        raise HTTPException(status_code=404, detail="Knowledge base not found")
+    require_private_knowledge_base(db, current_user, kb_id)
         
     tasks = (
         db.query(ProcessingTask)
@@ -521,21 +495,7 @@ async def get_document(
     """
     Get document details by ID.
     """
-    document = (
-        db.query(Document)
-        .join(KnowledgeBase)
-        .filter(
-            Document.id == doc_id,
-            Document.knowledge_base_id == kb_id,
-            KnowledgeBase.user_id == current_user.id
-        )
-        .first()
-    )
-
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    return document
+    return require_private_document(db, current_user, kb_id, doc_id)
 
 @router.post("/test-retrieval")
 async def test_retrieval(
@@ -548,16 +508,7 @@ async def test_retrieval(
     Test retrieval quality for a given query against a knowledge base.
     """
     try:
-        kb = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == request.kb_id,
-            KnowledgeBase.user_id == current_user.id
-        ).first()
-        
-        if not kb:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Knowledge base {request.kb_id} not found",
-            )
+        require_private_knowledge_base(db, current_user, request.kb_id)
         
         embeddings = EmbeddingsFactory.create()
         
@@ -579,5 +530,7 @@ async def test_retrieval(
             
         return {"results": response}
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Retrieval unavailable")

@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserResponse
+from app.services.authorization import assign_researcher, normalize_email, require_active_user
 
 router = APIRouter()
 
@@ -21,8 +22,10 @@ def register(*, db: Session = Depends(get_db), user_in: UserCreate) -> Any:
     Register a new user.
     """
     try:
+        # Added by ChatGPT: registration can assign only researcher, never allowlist-based admin.
+        email = normalize_email(str(user_in.email))
         # Check if user with this email exists
-        user = db.query(User).filter(User.email == user_in.email).first()
+        user = db.query(User).filter(User.email == email).first()
         if user:
             raise HTTPException(
                 status_code=400,
@@ -39,10 +42,11 @@ def register(*, db: Session = Depends(get_db), user_in: UserCreate) -> Any:
         
         # Create new user
         user = User(
-            email=user_in.email,
+            email=email,
             username=user_in.username,
             hashed_password=security.get_password_hash(user_in.password),
         )
+        assign_researcher(db, user)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -67,12 +71,7 @@ def login_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    elif not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive user",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    require_active_user(user)
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
