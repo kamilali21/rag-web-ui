@@ -13,17 +13,17 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 1 - Schema Foundation
+## Current Gate: Phase 1 Complete - Stopped Before Phase 2
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
 - Running services: backend, frontend, MySQL, Chroma, MinIO, Nginx.
-- Existing database revision: `3580c0dcd005`.
+- Original database revision: `3580c0dcd005`; current revision: `riq_003`.
 - Initial counts: 2 users, 2 knowledge bases, 4 documents, 190 chunks, 1 chat.
 - Actual configured providers: OpenAI-compatible chat, HuggingFace embeddings, Chroma vectors.
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
-- Phase 1 schema is implemented and verified on disposable MySQL; live application verification is pending below. No OTP/public corpus endpoints are activated.
+- Phase 1 schema is implemented, applied and verified end to end. No OTP/public corpus endpoints are activated. Stop here as requested; do not start Phase 2 without a new instruction.
 
 ### Citation Checkpoint - 16 September 2026
 
@@ -41,7 +41,18 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Explicit unique/FK/check constraints, cascade tests, expiry indexes, catalog composite indexes and real MySQL FULLTEXT search verified. Normalized allowlist/OTP email equality uses binary collation; application normalization is still a later gate.
 - 46 backend tests passed: 24 migration tests plus 22 baseline/provider regression tests. A restored real-data clone survived upgrade, downgrade and re-upgrade with every original column value preserved. Downgrade guards reject data loss. A second empty database passed the complete migration chain.
 - Test command: `PHASE1_TEST_DATABASE_URI=<disposable MySQL URI> python -m pytest tests/test_phase1_migrations.py tests/test_minimax_unit.py tests/test_baseline_regressions.py -q`. The migration suite refuses non-test host/database names and otherwise skips when not explicitly configured. Restore the clone at `3580c0dcd005` before each run; tests leave it at `riq_003`.
-- Live migration and post-migration RAG results will be recorded before declaring Phase 1 complete. Phase 2 is not authorized in this run.
+- Schema checkpoint commit: `7cc9697`. Phase 2 is not authorized in this run.
+
+### Phase 1 Live Completion - 16 September 2026
+
+- Briefly paused the API, created `.local/backups/pre-phase1-apply-20260916.sql`, applied the three verified migrations and restarted the existing backend. Every original column value compared equal immediately before and after migration.
+- Restored the final maintenance-window backup into isolated MySQL and repeated the value-by-value comparison after live acceptance: all ten original tables matched. Disposable databases/containers and synthetic test records were removed.
+- The running database is at `riq_003`. Original counts: 2 users, 2 KBs, 4 documents, 190 chunks, 1 chat, 24 messages, 5 upload records, 5 processing records and 1 API key. Only 2 role definitions and 2 researcher assignments were added; other Phase 1 tables remain empty.
+- Real post-migration acceptance passed: registration/sign-in, PDF upload, MinIO storage, extraction/preview, processing, relational persistence, configured embeddings, Chroma retrieval, OpenRouter answer streaming, valid document/page citations, saved conversation and synthetic fixture cleanup.
+- An initial smoke attempt reached the restarting backend before startup completed and received 502 without creating a fixture. After API readiness was confirmed through Nginx, the complete test passed.
+- Frontend remains deployed on `http://127.0.0.1.nip.io`; no temporary preview or port change. Existing frontend health checks and backend API response passed.
+- Recovery instructions are in `docs/phase1-recovery.md`. The final verification tag is `researchiq-phase1-verified-20260916`. Source tags and SQL backups serve different purposes; neither is a substitute for future coordinated object/vector backups.
+- Phase 1 is the schema foundation, not a claim that the entire ResearchIQ platform is production-secure or complete. Authorization, OTP delivery/session handling, system-owner provisioning and public discovery remain future gates.
 
 ### Verified On 15 September 2026
 
@@ -58,7 +69,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 The user updated the OpenRouter key, and the backend was recreated to load it. On 15 September 2026 the complete live acceptance test passed, including citation indices resolving to the synthetic document and page, saved answer verification and cleanup. The earlier 401 failure is resolved.
 
-Next: implement additive schema migrations, test upgrade/downgrade on disposable MySQL data, refresh the database backup, apply the verified migrations and rerun baseline acceptance before Phase 2.
+That next gate is now completed in Phase 1. The next planned phase is authorization, but this run stops before starting it.
 
 ### Repeatable Checks
 
