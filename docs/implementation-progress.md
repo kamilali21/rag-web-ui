@@ -23,7 +23,19 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Actual configured providers: OpenAI-compatible chat, HuggingFace embeddings, Chroma vectors.
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
-- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. Phase 3 was explicitly authorized and resumed from its uncommitted working tree. Email OTP remains disabled pending approved activation and real delivery verification. Stop before Phase 4.
+- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. Phase 3 code is tested at `fa75f07` and email OTP is now activated locally after explicit user approval. Brevo accepted a real OTP message; inbox receipt, successful browser sign-in, and deployed RAG acceptance still need confirmation. Stop before Phase 4.
+
+### Local OTP Activation - 19 September 2026
+
+<!-- Added by ChatGPT: activation evidence, distinct from successful inbox/sign-in acceptance. -->
+
+- The user supplied Brevo credentials locally and explicitly authorized activation. Verified SMTP authentication over certificate-checked TLS without displaying credentials. Only the non-secret `EMAIL_OTP_ENABLED` flag was changed to `true` in the ignored `.env`; credential values were not edited or committed.
+- The frontend image build completed during the interrupted activation and was confirmed running on resume. Recreated only the backend with the enabled flag and reloaded the existing Nginx configuration after `nginx -t` passed. No data service was recreated by this activation.
+- Live checks through Nginx passed: `/api/auth/methods` reported `email_otp: true`, `/login` returned 200, anonymous `/api/auth/me` returned 401, legacy password login returned 403, and an OTP request with an invalid Origin returned 403.
+- A real `/api/auth/request-otp` request to the user-confirmed inbox returned 200 after Brevo SMTP accepted the message. This created the expected OTP/rate-limit records, not a new user or research document. SMTP acceptance is not proof of inbox receipt; the user was asked to complete email verification directly in the login page without sharing the code in chat.
+- Existing URL remains `http://127.0.0.1.nip.io/login`. The explicit local HTTP exception is enabled; production still requires HTTPS. Chroma remains mounted at `/data`; MySQL/MinIO/research data and existing private ownership were not changed.
+- Recovery references: source tag `researchiq-pre-otp-activation-20260919` at the tested code commit, and retained frontend image `rag-web-ui-frontend:pre-otp-20260919`. An explicit rollback must account for the documented security implications of re-enabling legacy passwords/JWTs; do not remove volumes.
+- No application source changes were needed for activation. The user's two uncommitted citation changes remain preserved and excluded from activation documentation changes. Phase 4 is not started.
 
 ### Phase 3 Email OTP And Sessions - 19 September 2026
 
@@ -68,7 +80,7 @@ and `RAG_NEXT_DIST_DIR=.next-check npm run build`.
 
 #### Pending Live Gate
 
-Follow `docs/phase3-authentication.md`: configure Brevo SMTP credentials and a verified sender locally, review the exact origin/trusted proxy, explicitly approve activation, verify real inbox receipt and browser session/logout, then test a synthetic upload/retrieval/cited chat with the deployed providers. No real email was sent by this implementation run, and no synthetic records were added to the live research database. The tested code checkpoint is not a claim of completed live acceptance or permission to begin Phase 4.
+Follow `docs/phase3-authentication.md`: local activation and a real SMTP send are now recorded above. Confirm actual inbox receipt and browser session/logout, then test a synthetic upload/retrieval/cited chat with the deployed providers. The isolated code-verification run sent no real email; the subsequent explicitly approved activation did. No synthetic research records were added during activation. Neither the code checkpoint nor SMTP acceptance alone completes live acceptance or permits Phase 4.
 
 ### Phase 2 Authorization Core - 16 September 2026
 

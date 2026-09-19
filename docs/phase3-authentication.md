@@ -16,11 +16,13 @@ password registration, password token issuance, and browser JWT authentication.
 There is no automatic fallback if email or session configuration fails. Existing
 API keys continue to use the separate, ownership-checked API-key endpoints.
 
-The running deployment has not been reconfigured by this code checkpoint.
-Real Brevo inbox delivery and deployed browser/RAG acceptance are still required
-before declaring Phase 3 complete. No temporary preview URL is needed.
-The tested checkpoint is `researchiq-phase3-tested-20260919`; test commands and
-results are recorded in `implementation-progress.md`. OTP remains disabled.
+The tested code checkpoint is `researchiq-phase3-tested-20260919`; test commands
+and results are recorded in `implementation-progress.md`. On 19 September 2026,
+the user explicitly approved local activation: OTP is now enabled, the frontend
+is deployed, and Brevo accepted a real OTP request to the confirmed test inbox.
+Actual inbox receipt and deployed browser/session/RAG acceptance still need
+confirmation before declaring Phase 3 complete. The existing URL is unchanged;
+no temporary preview server was created.
 
 ## Brevo Configuration
 
