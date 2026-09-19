@@ -13,17 +13,37 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 3 Code Tested - Live Email Acceptance Pending
+## Current Gate: Phase 3 Password Flow Tested - Revised Live Acceptance Pending
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
-- Deployment services: backend, frontend, MySQL, Chroma, MinIO, Nginx. They were stopped during Phase 2 and were already running when Phase 3 resumed on 19 September. This resume did not restart or reconfigure them.
-- Original database revision: `3580c0dcd005`; current revision: `riq_003`.
+- Deployment services: backend, frontend, MySQL, Chroma, MinIO, Nginx. The password-flow revision recreated only backend/frontend and reloaded unchanged Nginx configuration. Data services remained running.
+- Original database revision: `3580c0dcd005`; current revision: `riq_004`.
 - Initial counts: 2 users, 2 knowledge bases, 4 documents, 190 chunks, 1 chat.
 - Actual configured providers: OpenAI-compatible chat, HuggingFace embeddings, Chroma vectors.
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
-- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. Phase 3 code is tested at `fa75f07` and email OTP is now activated locally after explicit user approval. Brevo accepted a real OTP message; inbox receipt, successful browser sign-in, and deployed RAG acceptance still need confirmation. Stop before Phase 4.
+- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. The user confirmed the initial OTP flow worked, then explicitly changed the desired contract to registration/password login with one-time email verification. The revision below supersedes the historical passwordless design. Stop before Phase 4.
+
+### Phase 3 Registration And Password Sign-In Revision - 19 September 2026
+
+<!-- Added by ChatGPT: user-directed correction of the initial passwordless design. -->
+
+- Restored username/email/password registration and confirmation in the existing styling. New accounts are unverified Researchers; no automatic account creation or sign-in occurs at OTP verification. Email/username plus password is the routine login path, with the existing opaque session cookies, CSRF, Origin, rotation and revocation protections. Browser JWTs remain rejected while email verification is enabled.
+- Registered-only verification and separate `reset_password` challenges reuse the existing indexed OTP/rate-limit tables. Unknown, inactive and system addresses receive a generic response but no email/account. Old `login` challenges cannot be redeemed. Verification requires the registration password as well as the emailed code; password setup/reset requires its own code and confirms a new password. Reset preserves account IDs/roles/research, revokes browser sessions and invalidates outstanding challenges; API keys remain separately managed credentials.
+- OTP-only accounts can set a password using inbox proof without creating duplicate accounts or losing documents. Previously unverified password accounts verify once. Password login and registration have separate database-backed identity/IP limits, new-password validation is enforced server-side, and oversized bcrypt input fails safely. Existing-user locking serializes password sign-in against password replacement without gap-locking unknown users.
+- Added migration `riq_004`: nullable `users.email_verified_at`, backfilled only from successfully issued OTP-era sessions, not used/exhausted OTP records. Active status remains a separate administrative control. Browser sessions and API-key owners require verified email in enabled mode. Roles/allowlisting/private ownership policies are unchanged.
+- **96 backend tests passed on disposable MySQL 8**, including all Phase 3 checks, 27 Phase 2 authorization tests and 22 baseline/provider regressions. **91 passed / 5 MySQL-only skipped on SQLite**. Two migration downgrade/re-upgrade cycles preserved every pre-existing column value in the disposable data; tests distinguish successful session proof from exhausted OTPs and cover concurrent signups/send/verify.
+- **40 frontend tests passed**, TypeScript passed, and the production build passed. Isolated headless Chrome at 1366x900 and 390x844 exercised registration, one-time verification, password login and recovery with mocked APIs, without overflow or JavaScript errors. No preview server was started. Existing deprecation/Next configuration warnings remain unrelated to this change.
+- The MySQL test inspector was updated to end repeatable-read snapshots before checking separately committed HTTP results. No production isolation or security assertions were weakened. Historical migration fixtures now target `riq_004` and correctly restore it after guarded partial downgrades; the dedicated Phase 3 migration round-trip was run, not the full historical clone-only Phase 1 suite.
+- Pre-change source tag: `researchiq-pre-password-flow-20260919` at `88f0918`. Retained frontend image: `rag-web-ui-frontend:pre-password-flow-20260919`. Private backup: `.local/backups/pre-password-flow-20260919.sql` (ignored, mode 0600), with a separate read-only table-count/hash receipt. These contain sensitive data and must not be committed or shared.
+- Deployed to the existing `http://127.0.0.1.nip.io` URL by rebuilding frontend and recreating only backend/frontend. Startup applied `riq_004`; Nginx validation/reload passed. Post-migration hashes matched all 16 non-auth tables, including all prior user/password/role columns, 2 knowledge bases, 7 documents, 388 chunks, 4 chats and 52 messages. No vectors were rebuilt and Chroma remains mounted at `/data`.
+- Live anonymous checks passed: login/register 200, anonymous identity 401, unregistered OTP verification 400, unregistered password login 401, wrong-Origin login 403. A unique unregistered OTP request returned the generic 200 response and produced **zero users and zero OTP challenges**. Only expected rate-limit records were written; no real email was sent in this revision's automated checks. Read-only deployed Chrome checks passed on desktop/mobile for password login, registration and recovery, without JavaScript errors or overflow.
+- Revised inbox acceptance remains a user step: register/verify a new account or set the existing OTP-only account's password using the live inbox, then confirm repeated password login/logout and a cited chat. The automated RAG checks use deterministic provider fixtures, not a new live-provider chat. `EMAIL_OTP_ENABLED` remains enabled; `.env` and credentials were not edited. The two pre-existing citation changes remain preserved and excluded from the authentication checkpoint. No Phase 4 work.
+- Tested revision checkpoint: `researchiq-phase3-password-flow-tested-20260919`. Nothing pushed; the development branch and earlier tags remain intact. Disposable test containers were stopped and removed.
+
+The sections below describe earlier checkpoints and are historical where their
+passwordless login or migration-head descriptions differ from this revision.
 
 ### Local OTP Activation - 19 September 2026
 

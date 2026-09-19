@@ -4,25 +4,56 @@
 
 ## Scope And Rollout
 
-Phase 3 reuses the Phase 1 authentication tables at `riq_003`; no migration is
-needed. Public corpus, OTP-based admin provisioning and later features are not
+At the user's request, Phase 3 now uses **registration with a password, one-time
+email verification, then ordinary password sign-in**. This supersedes the initial
+passwordless/automatic-registration design. The additive `riq_004` migration adds
+`users.email_verified_at`; existing passwords, IDs, roles and research are retained.
+Only an issued OTP-era session is used to backfill historical verification; used
+or exhausted OTP records are not proof. Accounts without that evidence verify once.
+Public corpus, OTP-based admin provisioning and later features are not
 included. University email and allowlisting alone never grant admin. Existing
 explicit roles plus current allowlisting still control admin access; private
 research stays owner-only.
 
 `EMAIL_OTP_ENABLED=false` is the default rollout state. It retains existing
-password/JWT login while SMTP is being configured. Setting it to `true` disables
-password registration, password token issuance, and browser JWT authentication.
+password/JWT login while SMTP is being configured. Setting it to `true` requires
+verified email and uses secure opaque cookies for password sign-in, not browser JWTs.
 There is no automatic fallback if email or session configuration fails. Existing
-API keys continue to use the separate, ownership-checked API-key endpoints.
+API keys continue to use separate, ownership-checked endpoints, whose owners must
+also have verified email in enabled mode.
 
-The tested code checkpoint is `researchiq-phase3-tested-20260919`; test commands
+The revised code checkpoint is `researchiq-phase3-password-flow-tested-20260919`; test commands
 and results are recorded in `implementation-progress.md`. On 19 September 2026,
 the user explicitly approved local activation: OTP is now enabled, the frontend
 is deployed, and Brevo accepted a real OTP request to the confirmed test inbox.
-Actual inbox receipt and deployed browser/session/RAG acceptance still need
-confirmation before declaring Phase 3 complete. The existing URL is unchanged;
+The user confirmed the original OTP flow worked and requested this registration
+change. Revised registration/recovery inbox acceptance still needs confirmation.
+The existing URL is unchanged;
 no temporary preview server was created.
+
+## Account Flows
+
+1. `/register`: choose a username, email, password and confirmation. The backend
+   checks uniqueness and assigns only Researcher. No session is issued yet.
+2. Request the verification code, enter it with the registration password, and
+   return to sign-in. A correct OTP verifies the registered account only; it
+   cannot create an account or issue a session.
+3. `/login`: enter email or username plus password. Once verified, no OTP is
+   needed for routine sign-in. An unverified account with a correct password is
+   taken to verification. Invalid passwords reveal no verification state.
+4. Existing OTP-only users choose **Set or reset password**, prove inbox ownership
+   with a purpose-bound recovery code, and choose a new password. This updates the
+   same account, preserving its documents and roles. Forgotten passwords use the
+   same flow. Reset revokes all browser sessions and outstanding email challenges;
+   existing API keys remain separately managed credentials.
+
+Unknown/inactive/system addresses receive the same generic OTP request response
+but no email or account. Verification and recovery purposes cannot be exchanged;
+old `login` codes cannot be redeemed. Registration cannot overwrite another user's
+password. Origin, rate-limit and single-use checks also apply to recovery.
+New passwords require at least eight characters, uppercase, lowercase and a
+number, with a 72-byte UTF-8 maximum for bcrypt. Legacy passwords remain valid.
+New usernames are 3-64 ASCII letters, numbers, dots, underscores or hyphens.
 
 ## Brevo Configuration
 
@@ -82,6 +113,8 @@ Defaults:
 - Six-digit codes, five-minute expiry, five attempts, 60-second resend cooldown.
 - Send: five attempts per normalized email and 30 per client IP per 15 minutes.
 - Verify: 20 attempts per normalized email and 60 per client IP per 15 minutes.
+- Password login and registration: each has its own 20 identity / 60 IP attempts
+  per 15 minutes. Password comparison uses a dummy hash for missing accounts.
 - Limits include failed attempts and sends; rate-limit errors include Retry-After.
 - SQL row locks serialize workers; resends invalidate previous challenges.
 - IP-throttled requests do not allocate additional per-email limit rows. MySQL
@@ -108,10 +141,13 @@ Changing defaults requires corresponding abuse/UX testing.
 2. Build the frontend and recreate **only** backend/frontend to load configuration
    and code. Nginx upstream resolution may need its normal reload after changed
    container IPs. Do not recreate databases, alter volumes, or rebuild vectors.
-3. Confirm `/api/auth/methods` returns `email_otp: true`. Request a code for an
-   inbox you control, check actual receipt, sign in, and confirm `/api/auth/me`.
+3. Confirm `/api/auth/methods` returns `email_otp: true`. Register with an inbox
+   you control, request/receive its verification code, verify, then sign in with
+   the password and confirm `/api/auth/me`. Existing OTP-only users first set a
+   password using the separate recovery flow.
 4. Check resend cooldown, previous-code rejection, logout, refresh-after-logout,
-   and browser cookie flags. Verify legacy passwords/JWTs are rejected.
+   and browser cookie flags. Verify repeated password sign-in needs no email;
+   unknown-address OTP requests never create accounts and legacy JWTs are rejected.
 5. Confirm existing account/roles and document ownership are unchanged. Test
    private Library, upload, retrieval, a cited streamed answer and saved chat.
    Use a synthetic fixture, not someone else's private research.
@@ -136,8 +172,11 @@ public deployment. Counts contain no email addresses, codes or session secrets.
 
 ## Recovery
 
-Pre-Phase-3 source checkpoint: `researchiq-phase2-tested-20260916` (`9f4aac7`).
-No schema downgrade or data deletion is needed for code rollback. Preserve the
+Pre-revision source checkpoint: `researchiq-otp-activated-20260919` (`88f0918`).
+The new column is additive; reverting application code does not require dropping
+it or deleting data. Reverting to that checkpoint also restores the old unwanted
+passwordless behavior, so prefer a forward fix. The tested `riq_004` downgrade
+removes only verification metadata; do not apply it casually on live data. Preserve the
 user's unrelated citation edits before switching source. Keep the Chroma `/data`
 volume fix and the existing `.env`/data.
 

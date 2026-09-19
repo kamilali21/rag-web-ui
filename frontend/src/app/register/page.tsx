@@ -4,17 +4,19 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
+import EmailLogin from "@/components/auth/email-login";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [error, setError] = useState("");
-  // Added by ChatGPT: OTP activation has one sign-in/sign-up flow, never a password fallback.
-  const [legacy, setLegacy] = useState(false);
+  // Added by ChatGPT: restore registration, then verify email without issuing a session.
+  const [emailOTP, setEmailOTP] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [registered, setRegistered] = useState<{ email: string; password: string } | null>(null);
   useEffect(() => {
     api.get("/api/auth/methods", { redirectOnUnauthorized: false, cache: "no-store" }).then(methods => {
       if (typeof methods.email_otp !== "boolean") throw new Error("Invalid sign-in configuration");
-      if (methods.email_otp) router.replace("/login");
-      else setLegacy(true);
+      setEmailOTP(methods.email_otp);
     }).catch(() => setError("Registration is temporarily unavailable."));
   }, [router]);
   const [validationErrors, setValidationErrors] = useState({
@@ -97,24 +99,27 @@ export default function RegisterPage() {
     }
 
     try {
+      setBusy(true);
       await api.post("/api/auth/register", {
         username,
         email,
         password,
       });
 
-      router.push("/login");
+      if (emailOTP) setRegistered({ email, password });
+      else router.push("/login");
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError("Registration failed");
       }
-    }
+    } finally { setBusy(false); }
   };
 
   // Added by ChatGPT: registration inherits the same reference palette and control shapes.
-  if (!legacy) return <main className="auth-page"><div className="w-full max-w-md rounded-lg bg-white p-8 space-y-4 text-center">
+  if (registered) return <EmailLogin initialEmail={registered.email} initialPassword={registered.password} />;
+  if (emailOTP === null) return <main className="auth-page"><div className="w-full max-w-md rounded-lg bg-white p-8 space-y-4 text-center">
     <p role={error ? "alert" : "status"}>{error || "Loading sign-in..."}</p>
     {error && <Link href="/login">Back to sign in</Link>}
   </div></main>;
@@ -144,6 +149,10 @@ export default function RegisterPage() {
                   id="username"
                   name="username"
                   type="text"
+                  autoComplete="username"
+                  pattern={emailOTP ? "[A-Za-z0-9_.\\-]{3,64}" : undefined}
+                  title="3-64 letters, numbers, dots, underscores or hyphens"
+                  maxLength={64}
                   required
                   className="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter your username"
@@ -161,6 +170,8 @@ export default function RegisterPage() {
                   id="email"
                   name="email"
                   type="email"
+                  autoComplete="email"
+                  maxLength={255}
                   required
                   className={`mt-1 block w-full px-3 py-2 rounded-md border ${
                     validationErrors.email
@@ -188,6 +199,8 @@ export default function RegisterPage() {
                   id="password"
                   name="password"
                   type="password"
+                  autoComplete="new-password"
+                  maxLength={72}
                   required
                   className={`mt-1 block w-full px-3 py-2 rounded-md border ${
                     validationErrors.password
@@ -215,6 +228,8 @@ export default function RegisterPage() {
                   id="confirmPassword"
                   name="confirmPassword"
                   type="password"
+                  autoComplete="new-password"
+                  maxLength={72}
                   required
                   className={`mt-1 block w-full px-3 py-2 rounded-md border ${
                     validationErrors.confirmPassword
@@ -239,9 +254,10 @@ export default function RegisterPage() {
 
             <button
               type="submit"
+              disabled={busy}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
             >
-              Create Account
+              {busy ? "Creating account..." : "Create Account"}
             </button>
           </form>
 

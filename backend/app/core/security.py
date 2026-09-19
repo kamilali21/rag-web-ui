@@ -17,9 +17,18 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
     # Added by ChatGPT: OTP-only identities must fail password login without crashing.
-    if not hashed_password:
+    if not hashed_password or len(plain_password.encode("utf-8")) > 72:
         return False
     return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+
+
+# Added by ChatGPT: shared server-side policy for new passwords, within bcrypt's byte limit.
+def validate_new_password(password: str):
+    if (len(password) < 8 or len(password.encode("utf-8")) > 72
+            or not any(c.isupper() for c in password)
+            or not any(c.islower() for c in password)
+            or not any(c.isdigit() for c in password)):
+        raise HTTPException(400, "Password must have at least 8 characters, uppercase, lowercase and a number (maximum 72 UTF-8 bytes).")
 
 def get_password_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -94,5 +103,7 @@ def get_api_key_user(
         )
     
     user = require_active_user(api_key_obj.user)
+    if settings.EMAIL_OTP_ENABLED and user.email_verified_at is None:
+        raise HTTPException(403, "Verify your email before using this account")
     APIKeyService.update_last_used(db=db, api_key=api_key_obj)
     return user

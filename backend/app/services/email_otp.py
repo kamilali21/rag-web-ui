@@ -10,16 +10,15 @@ from datetime import datetime, timedelta
 from email.message import EmailMessage
 
 from fastapi import HTTPException, Request
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.authentication import AuthRateLimit, EmailOTP
+from app.models.authentication import AuthRateLimit, AuthSession, EmailOTP
 from app.models.user import User
-from app.services.authorization import assign_researcher, normalize_email
-from app.services.auth_sessions import check_configuration, client_address, create_session
+from app.services.authorization import normalize_email
+from app.services.auth_sessions import check_configuration, client_address
 
 logger = logging.getLogger(__name__)
 INVALID_CODE = "Invalid or expired code"
@@ -35,8 +34,8 @@ def send_code(email: str, code: str):
     message = EmailMessage()
     message["From"] = settings.SMTP_FROM_EMAIL
     message["To"] = email
-    message["Subject"] = "Your ResearchIQ sign-in code"
-    message.set_content(f"Your ResearchIQ sign-in code is {code}.\n\n"
+    message["Subject"] = "Your ResearchIQ verification code"
+    message.set_content(f"Your ResearchIQ verification code is {code}.\n\n"
                         f"It expires in {settings.OTP_TTL_SECONDS // 60} minutes. "
                         "If you did not request this code, you can ignore this email.")
     context = ssl.create_default_context()
@@ -89,7 +88,7 @@ def lock_limits(db: Session, email: str, address: str, action: str):
     return rows[keyed_hash(f"state:{email}")]
 
 
-def request_code(db: Session, email: str, request: Request):
+def request_code(db: Session, email: str, request: Request, purpose: str = "verify_email"):
     check_configuration()
     email = normalize_email(email)
     state = lock_limits(db, email, client_address(request), "send")
@@ -100,11 +99,19 @@ def request_code(db: Session, email: str, request: Request):
         raise HTTPException(429, "Please wait before requesting another code", headers={"Retry-After": str(wait)})
     # Added by ChatGPT: match MySQL DATETIME precision instead of rounding into an extra second.
     state.blocked_until = now.replace(microsecond=0) + timedelta(seconds=settings.OTP_RESEND_SECONDS)
-    db.query(EmailOTP).filter(EmailOTP.email == email, EmailOTP.purpose == "login", EmailOTP.used_at.is_(None)).update(
+    result = {"message": "If this registered account is eligible, a code has been sent.",
+              "retry_after": settings.OTP_RESEND_SECONDS}
+    # Added by ChatGPT: no implicit registration, including accent-equivalent MySQL identities.
+    user = db.query(User).filter(User.email == email).first()
+    if (not user or normalize_email(user.email) != email or not user.is_active or user.is_system
+            or (purpose == "verify_email" and (user.email_verified_at is not None or not user.hashed_password))):
+        db.commit()
+        return result
+    db.query(EmailOTP).filter(EmailOTP.email == email, EmailOTP.purpose == purpose, EmailOTP.used_at.is_(None)).update(
         {EmailOTP.used_at: now}, synchronize_session=False)
     code = f"{secrets.randbelow(1000000):06d}"
     otp = EmailOTP(email=email, otp_hash="", expires_at=now + timedelta(seconds=settings.OTP_TTL_SECONDS),
-                   delivery_status="pending", purpose="login", attempt_count=0)
+                   delivery_status="pending", purpose=purpose, attempt_count=0)
     db.add(otp)
     db.flush()
     otp.otp_hash = keyed_hash(f"otp:{otp.id}:{email}:{code}")
@@ -120,15 +127,20 @@ def request_code(db: Session, email: str, request: Request):
         raise HTTPException(503, "Email delivery is temporarily unavailable. Please try again later.") from None
     db.query(EmailOTP).filter_by(id=otp_id).update({EmailOTP.delivery_status: "sent"})
     db.commit()
-    return {"message": "If this address can sign in, a code has been sent.", "retry_after": settings.OTP_RESEND_SECONDS}
+    return result
 
 
-def verify_code(db: Session, email: str, code: str, request: Request):
+def verify_code(db: Session, email: str, code: str, request: Request, password: str,
+                purpose: str = "verify_email"):
+    # Added by ChatGPT: import locally to avoid the existing security/session dependency cycle.
+    from app.core.security import get_password_hash, validate_new_password, verify_password
     check_configuration()
+    if purpose == "reset_password":
+        validate_new_password(password)
     email = normalize_email(email)
     lock_limits(db, email, client_address(request), "verify")
     now = datetime.utcnow()
-    otp = db.query(EmailOTP).filter(EmailOTP.email == email, EmailOTP.purpose == "login",
+    otp = db.query(EmailOTP).filter(EmailOTP.email == email, EmailOTP.purpose == purpose,
         EmailOTP.used_at.is_(None), EmailOTP.delivery_status == "sent").order_by(EmailOTP.id.desc()).with_for_update().first()
     if otp is None or otp.expires_at <= now or otp.attempt_count >= settings.OTP_MAX_ATTEMPTS:
         db.commit()
@@ -139,23 +151,21 @@ def verify_code(db: Session, email: str, code: str, request: Request):
             otp.used_at = now
         db.commit()
         raise HTTPException(400, INVALID_CODE)
-    otp.used_at = now
-    # Added by ChatGPT: the email mutex handles same-address races; unique constraints handle collisions.
-    # A locking read on a missing user would gap-lock unrelated concurrent MySQL signups.
     user = db.query(User).filter(User.email == email).first()
-    # MySQL legacy email collation can equate accents. Never link a different normalized identity.
-    if user and (normalize_email(user.email) != email or not user.is_active or user.is_system):
+    if (not user or normalize_email(user.email) != email or not user.is_active or user.is_system
+            or (purpose == "verify_email" and not verify_password(password, user.hashed_password))):
+        if otp.attempt_count >= settings.OTP_MAX_ATTEMPTS:
+            otp.used_at = now
         db.commit()
         raise HTTPException(400, INVALID_CODE)
-    try:
-        if user is None:
-            user = User(email=email, username=f"researcher_{secrets.token_hex(12)}", hashed_password=None)
-            assign_researcher(db, user)
-            db.add(user)
-            db.flush()
-        tokens = create_session(db, user, request)
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(409, "Sign-in changed concurrently. Please try again.") from None
-    return user, tokens
+    otp.used_at = now
+    user.email_verified_at = user.email_verified_at or now
+    if purpose == "reset_password":
+        user.hashed_password = get_password_hash(password)
+        db.query(AuthSession).filter_by(user_id=user.id).update({AuthSession.revoked_at: now})
+        # A reset also invalidates outstanding verification codes for the old password.
+        db.query(EmailOTP).filter(EmailOTP.email == email, EmailOTP.used_at.is_(None)).update(
+            {EmailOTP.used_at: now}, synchronize_session=False)
+    db.commit()
+    return {"message": "Password saved. Sign in with your password." if purpose == "reset_password"
+            else "Email verified. Sign in with your password."}

@@ -4,12 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
+import EmailLogin from "./email-login";
 
-// Added by ChatGPT: retained only for the explicit pre-OTP rollout mode.
-export default function PasswordLogin() {
+// Added by ChatGPT: passwords sign in; OTP is reserved for verification and recovery.
+export default function PasswordLogin({ emailOTP = false }: { emailOTP?: boolean }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -32,7 +35,13 @@ export default function PasswordLogin() {
         },
       });
 
-      localStorage.setItem("token", data.access_token);
+      if (emailOTP) {
+        localStorage.removeItem("token");
+        if (data.verification_required) { setVerificationEmail(data.email); return; }
+        await api.get("/api/auth/me", { redirectOnUnauthorized: false, cache: "no-store" });
+      } else {
+        localStorage.setItem("token", data.access_token);
+      }
       router.push("/dashboard");
     } catch (err) {
       if (err instanceof ApiError) {
@@ -44,6 +53,10 @@ export default function PasswordLogin() {
       setLoading(false);
     }
   };
+
+  if (verificationEmail !== null || recovery) return <EmailLogin
+    initialEmail={verificationEmail || ""} purpose={recovery ? "reset_password" : "verify_email"}
+    onComplete={() => { setVerificationEmail(null); setRecovery(false); setError(""); }} />;
 
   // Added by ChatGPT: shared forest/cream authentication surface retains the login behavior.
   return (
@@ -66,16 +79,18 @@ export default function PasswordLogin() {
                   htmlFor="username"
                   className="block text-sm font-medium text-gray-700"
                 >
-                  Username
+                  Email or username
                 </label>
                 <input
                   id="username"
                   name="username"
                   type="text"
+                  autoComplete="username"
+                  maxLength={255}
                   required
                   disabled={loading}
                   className="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your username"
+                  placeholder="Enter your email or username"
                 />
               </div>
 
@@ -90,6 +105,7 @@ export default function PasswordLogin() {
                   id="password"
                   name="password"
                   type="password"
+                  autoComplete="current-password"
                   required
                   disabled={loading}
                   className="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -99,7 +115,7 @@ export default function PasswordLogin() {
             </div>
 
             {error && (
-              <div className="p-3 rounded-md bg-red-50 text-red-700 text-sm">
+              <div role="alert" className="p-3 rounded-md bg-red-50 text-red-700 text-sm">
                 {error}
               </div>
             )}
@@ -112,6 +128,11 @@ export default function PasswordLogin() {
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
+
+          {emailOTP && <div className="flex flex-wrap justify-between gap-3 text-sm text-green-800">
+            <button type="button" onClick={() => setVerificationEmail("")}>Verify email</button>
+            <button type="button" onClick={() => setRecovery(true)}>Set or reset password</button>
+          </div>}
 
           <div className="text-center">
             <Link

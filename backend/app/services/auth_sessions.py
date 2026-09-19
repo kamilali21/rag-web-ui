@@ -91,11 +91,16 @@ def authenticate_session(db: Session, request: Request) -> User:
         raise HTTPException(401, "Session expired or unavailable")
     require_csrf(request, session)
     user = require_active_user(db.get(User, session.user_id))
+    # Added by ChatGPT: verification is enforced on every browser request, not just login.
+    if user.email_verified_at is None:
+        raise HTTPException(401, "Email verification required")
     return user
 
 
 def create_session(db: Session, user: User, request: Request):
     require_active_user(user)
+    if user.email_verified_at is None:
+        raise HTTPException(403, "Email verification required")
     token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     # Rotation revokes only the session presented by this browser, not other devices.
     old = find_session(db, request)

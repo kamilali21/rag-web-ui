@@ -16,7 +16,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, configure_mappers
 
 BASELINE = "3580c0dcd005"
-HEAD = "riq_003"
+HEAD = "riq_004"
 NEW_TABLES = {
     "roles", "user_roles", "departments", "admin_allowlist", "email_otps",
     "auth_sessions", "auth_rate_limits", "academic_document_metadata", "bookmarks",
@@ -193,10 +193,11 @@ def test_fulltext_search_after_commit(migrated):
         with pytest.raises(RuntimeError, match="academic_document_metadata"):
             command.downgrade(migrated.config, "riq_002")
         with migrated.engine.connect() as connection:
-            assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == HEAD
+            assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "riq_003"
     finally:
         with migrated.engine.begin() as connection:
             connection.execute(sa.text("DELETE FROM academic_document_metadata WHERE title='Irrigation synthetic research'"))
+        command.upgrade(migrated.config, HEAD)
 
 
 def test_auth_uniqueness_and_user_cascade(connection):
@@ -239,6 +240,7 @@ def test_library_rollback_guards(migrated, insert, cleanup, reason):
     finally:
         with migrated.engine.begin() as connection:
             connection.execute(sa.text(cleanup))
+        command.upgrade(migrated.config, HEAD)
 
 
 def test_earlier_migrations_refuse_destructive_rollback(migrated):

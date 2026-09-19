@@ -39,12 +39,21 @@ def send(w, email=None):
 
 
 def verify(w, code, email=None):
-    return w.client.post("/api/auth/verify-otp", json={"email": email or w.alice.email, "code": code})
+    return w.client.post("/api/auth/verify-otp", json={"email": email or w.alice.email, "code": code,
+                                                     "password": "phase2-test-password"})
 
 
 def login(w, email=None):
-    result = verify(w, send(w, email), email)
+    email = email or w.alice.email
+    w.db.rollback()
+    w.db.expire_all()
+    user = w.db.query(User).filter_by(email=email).one()
+    if user.email_verified_at is None:
+        assert verify(w, send(w, email), email).status_code == 200
+    result = w.client.post("/api/auth/token", data={"username": email, "password": "phase2-test-password"})
     assert result.status_code == 200, result.text
+    # Added by ChatGPT: end the inspector's snapshot after independent HTTP commits.
+    w.db.rollback()
     return result
 
 
@@ -65,6 +74,9 @@ def test_hashed_codes_secure_cookies_me_and_single_use(otp):
     assert row.otp_hash == email_otp.keyed_hash(f"otp:{row.id}:{w.alice.email}:{code}")
     result = verify(w, code)
     assert result.status_code == 200
+    assert not result.headers.get_list("set-cookie")
+    assert w.client.get("/api/auth/me").status_code == 401
+    result = login(w)
     cookies = result.headers.get_list("set-cookie")
     assert all("Secure" in c and "SameSite=lax" in c and "Path=/" in c for c in cookies)
     assert "HttpOnly" in cookies[0] and "HttpOnly" not in cookies[1]
@@ -84,9 +96,15 @@ def test_new_university_or_allowlisted_email_is_only_researcher(otp):
     w = otp
     email = "new-professor@uaf.edu.pk"
     w.db.add(AdminAllowlist(email=email, is_active=True)); w.db.commit()
-    login(w, email)
+    result = w.client.post("/api/auth/register", json={"username": "new-professor", "email": email,
+                            "password": "NewPassword123", "is_superuser": True})
+    assert result.status_code == 200
+    code = send(w, email)
+    assert w.client.post("/api/auth/verify-otp", json={"email": email, "code": code,
+                                                     "password": "NewPassword123"}).status_code == 200
+    assert w.client.post("/api/auth/token", data={"username": email, "password": "NewPassword123"}).status_code == 200
     user = w.db.query(User).filter_by(email=email).one()
-    assert user.hashed_password is None and not user.is_superuser
+    assert user.hashed_password is not None and not user.is_superuser
     assert [r.name for r in user.roles] == ["researcher"]
     assert w.client.get("/test/admin").status_code == 403
 
@@ -106,7 +124,9 @@ def test_existing_admin_preserved_but_private_documents_stay_private(otp):
 def test_inactive_and_system_cannot_sign_in(otp, actor):
     w = otp
     email = getattr(w, actor).email
-    assert verify(w, send(w, email), email).status_code == 400
+    assert w.client.post("/api/auth/request-otp", json={"email": email}).status_code == 200
+    assert not w.mail
+    assert verify(w, "123456", email).status_code == 400
     assert w.db.query(AuthSession).count() == 0
 
 
@@ -122,6 +142,7 @@ def test_csrf_origin_logout_and_revocation(otp):
     assert not w.client.cookies
     w.client.cookies.set(auth_sessions.SESSION_COOKIE, token)
     assert w.client.get("/api/auth/me").status_code == 401
+    w.db.rollback()
     w.db.expire_all()
     assert w.db.query(AuthSession).one().revoked_at is not None
 
@@ -210,7 +231,8 @@ def test_email_and_ip_send_limits_and_window_reset(otp):
         release_cooldown(w); send(w)
     release_cooldown(w)
     assert w.client.post("/api/auth/request-otp", json={"email": w.alice.email}).status_code == 429
-    for n in range(24): send(w, f"different{n}@example.com")
+    for n in range(24):
+        assert w.client.post("/api/auth/request-otp", json={"email": f"different{n}@example.com"}).status_code == 200
     count = w.db.query(AuthRateLimit).count()
     w.db.rollback()
     assert w.client.post("/api/auth/request-otp", json={"email": "over-ip@example.com"}).status_code == 429
@@ -251,12 +273,14 @@ def test_pending_delivery_cannot_verify(otp):
     assert verify(w, code).status_code == 400
 
 
-def test_cutover_rejects_password_registration_and_jwts(otp):
+def test_cutover_requires_verification_and_rejects_jwts(otp):
     w = otp
     assert w.client.get("/api/auth/methods").json() == {"email_otp": True}
     assert w.client.get("/api/auth/me", headers=w.headers(w.alice)).status_code == 401
-    assert w.client.post("/api/auth/token", data={"username": "alice", "password": "phase2-test-password"}).status_code == 403
-    assert w.client.post("/api/auth/register", json={"username": "new", "email": "new@example.com", "password": "password"}).status_code == 403
+    result = w.client.post("/api/auth/token", data={"username": "alice", "password": "phase2-test-password"})
+    assert result.json() == {"verification_required": True, "email": w.alice.email}
+    assert not w.client.cookies and w.db.query(AuthSession).count() == 0
+    assert w.client.post("/api/auth/register", json={"username": "new", "email": "new@example.com", "password": "password"}).status_code == 400
 
 
 def test_disabled_otp_preserves_legacy_login_and_me(world, monkeypatch):
@@ -284,7 +308,7 @@ def test_explicit_legacy_rollback_clears_stale_otp_cookies(otp, monkeypatch):
 def test_anonymous_login_origin_and_input_validation(otp):
     w = otp
     for path, payload in [("request-otp", {"email": w.alice.email}),
-                          ("verify-otp", {"email": w.alice.email, "code": "123456"})]:
+                          ("verify-otp", {"email": w.alice.email, "code": "123456", "password": "password"})]:
         assert w.client.post(f"/api/auth/{path}", json=payload, headers={"Origin": "null"}).status_code == 403
     assert w.client.post("/api/auth/request-otp", json={"email": "bad\naddress"}).status_code == 422
     assert verify(w, "1" * 10000).status_code == 422
@@ -367,7 +391,10 @@ def test_mysql_accent_collation_does_not_link_another_identity(otp):
     w = otp
     if w.engine.dialect.name != "mysql": pytest.skip("Legacy MySQL accent-insensitive collation")
     w.alice.email = "al\u00efce@uaf.edu.pk"; w.db.commit()
-    assert verify(w, send(w, "alice@uaf.edu.pk"), "alice@uaf.edu.pk").status_code == 400
+    assert w.client.post("/api/auth/request-otp", json={"email": "alice@uaf.edu.pk"}).status_code == 200
+    assert not w.mail
+    assert verify(w, "123456", "alice@uaf.edu.pk").status_code == 400
+    assert w.client.post("/api/auth/token", data={"username": "alice@uaf.edu.pk", "password": "phase2-test-password"}).status_code == 401
     assert w.db.query(AuthSession).count() == 0
 
 
@@ -409,32 +436,150 @@ def test_mysql_concurrent_requests_allow_one_winner(otp, action):
         with TestClient(w.app, base_url="https://testserver") as client:
             barrier.wait(timeout=10)
             path = "verify-otp" if action == "verify" else "request-otp"
-            payload = {"email": w.alice.email, **({"code": code} if code else {})}
+            payload = {"email": w.alice.email, **({"code": code, "password": "phase2-test-password"} if code else {})}
             return client.post(f"/api/auth/{path}", json=payload, headers={"Origin": settings.AUTH_ORIGIN}).status_code
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: attempt(), range(2)))
     assert sorted(results) == ([200, 400] if action == "verify" else [200, 429])
-    if action == "verify": assert w.db.query(AuthSession).count() == 1
+    if action == "verify": assert w.db.query(AuthSession).count() == 0
     else: assert len(w.mail) == 1
 
 
 def test_mysql_concurrent_new_users_do_not_gap_lock_each_other(otp, monkeypatch):
+    from app.api.api_v1 import auth
     w = otp
     if w.engine.dialect.name != "mysql": pytest.skip("Concurrent signup locking requires disposable MySQL")
     addresses = ["new-a@example.com", "new-b@example.com"]
-    codes = {email: send(w, email) for email in addresses}
     barrier = Barrier(2)
-    assign = email_otp.assign_researcher
+    assign = auth.assign_researcher
     def concurrent_assign(db, user):
         barrier.wait(timeout=15)
         assign(db, user)
-    monkeypatch.setattr(email_otp, "assign_researcher", concurrent_assign)
-    monkeypatch.setattr(email_otp, "client_address", lambda request: request.headers["x-test-ip"])
+    monkeypatch.setattr(auth, "assign_researcher", concurrent_assign)
+    monkeypatch.setattr(auth_sessions, "client_address", lambda request: request.headers["x-test-ip"])
     def attempt(item):
         index, email = item
         with TestClient(w.app, base_url="https://testserver") as client:
-            return client.post("/api/auth/verify-otp", json={"email": email, "code": codes[email]},
+            return client.post("/api/auth/register", json={"email": email, "username": f"new-user-{index}", "password": "Password123"},
                                headers={"Origin": settings.AUTH_ORIGIN, "x-test-ip": f"198.51.100.{index + 1}"}).status_code
     with ThreadPoolExecutor(max_workers=2) as pool:
         assert list(pool.map(attempt, enumerate(addresses))) == [200, 200]
     assert w.db.query(User).filter(User.email.in_(addresses)).count() == 2
+
+
+# Added by ChatGPT: revised registration/password contract, including OTP-era account recovery.
+def test_unregistered_email_never_sends_creates_or_authenticates(otp):
+    w = otp
+    count = w.db.query(User).count()
+    assert w.client.post("/api/auth/request-otp", json={"email": "unregistered@gmail.com"}).status_code == 200
+    assert not w.mail and w.db.query(EmailOTP).count() == 0
+    assert verify(w, "123456", "unregistered@gmail.com").status_code == 400
+    assert w.db.query(User).count() == count and not w.client.cookies
+    assert w.client.post("/api/auth/token", data={"username": "unregistered@gmail.com", "password": "Password123"}).status_code == 401
+
+
+def test_registration_verification_then_repeated_password_login(otp):
+    w = otp
+    payload = {"username": "registered", "email": "registered@example.com", "password": "Password123"}
+    assert w.client.post("/api/auth/register", json=payload).status_code == 200
+    assert not w.client.cookies
+    result = w.client.post("/api/auth/token", data=payload)
+    assert result.json()["verification_required"] is True
+    code = send(w, payload["email"])
+    verify_payload = {"email": payload["email"], "password": payload["password"], "code": code}
+    assert w.client.post("/api/auth/verify-otp", json={**verify_payload, "password": "WrongPassword123"}).status_code == 400
+    assert w.client.post("/api/auth/verify-otp", json=verify_payload).status_code == 200
+    assert not w.client.cookies
+    for identifier in [payload["username"], payload["email"], payload["username"]]:
+        result = w.client.post("/api/auth/token", data={"username": identifier, "password": payload["password"]})
+        assert result.json() == {"authenticated": True}
+        assert w.client.get("/api/auth/me").status_code == 200
+        assert w.client.post("/api/auth/logout", headers=csrf(w)).status_code == 200
+    assert len(w.mail) == 1
+    assert w.client.post("/api/auth/register", json=payload).status_code == 400
+
+
+@pytest.mark.parametrize("existing_password", [True, False])
+def test_password_recovery_preserves_identity_and_revokes_sessions(otp, existing_password):
+    w = otp
+    login(w)
+    old_session = w.client.cookies.get(auth_sessions.SESSION_COOKIE)
+    if not existing_password:
+        w.alice.hashed_password = None
+        w.db.commit()
+    release_cooldown(w)
+    payload = {"email": w.alice.email, "purpose": "reset_password"}
+    assert w.client.post("/api/auth/request-otp", json=payload).status_code == 200
+    code = w.mail[-1][1]
+    # Recovery codes cannot be exchanged as email-verification codes.
+    assert verify(w, code).status_code == 400
+    body = {**payload, "code": code, "password": "Replacement123"}
+    assert w.client.post("/api/auth/verify-otp", json=body).status_code == 200
+    assert w.client.post("/api/auth/verify-otp", json=body).status_code == 400
+    assert w.client.get("/api/auth/me").status_code == 401
+    w.client.cookies.clear()
+    assert w.client.post("/api/auth/token", data={"username": "alice", "password": "phase2-test-password"}).status_code == 401
+    assert w.client.post("/api/auth/token", data={"username": "alice", "password": "Replacement123"}).status_code == 200
+    assert w.client.get("/api/auth/me").json()["id"] == w.alice.id
+    assert w.client.get(f"/api/knowledge-base/{w.alice_kb.id}").status_code == 200
+    assert w.client.cookies.get(auth_sessions.SESSION_COOKIE) != old_session
+
+
+def test_password_login_rate_limit_and_origin(otp):
+    w = otp
+    payload = {"username": "alice", "password": "bad"}
+    assert w.client.post("/api/auth/token", data=payload, headers={"Origin": "https://evil.example"}).status_code == 403
+    for _ in range(20):
+        assert w.client.post("/api/auth/token", data=payload).status_code == 401
+    result = w.client.post("/api/auth/token", data=payload)
+    assert result.status_code == 429 and result.headers["Retry-After"] == "900"
+
+
+@pytest.mark.parametrize("password", ["short", "lowercase123", "UPPERCASE123", "NoNumbers", "A1" + "\u00e9" * 36])
+def test_new_password_policy_is_enforced_server_side(otp, password):
+    assert otp.client.post("/api/auth/register", json={"username": "new-user", "email": "new@example.com", "password": password}).status_code == 400
+
+
+def test_unverified_api_key_and_session_cannot_bypass_verification(otp):
+    w = otp
+    assert w.client.get(f"/openapi/knowledge/{w.alice_kb.id}/query", params={"query": "secret"}, headers={"X-API-Key": "phase2-alice"}).status_code == 403
+    login(w)
+    w.db.expire_all()
+    w.alice.email_verified_at = None
+    w.db.commit()
+    assert w.client.get("/api/auth/me").status_code == 401
+
+
+def test_mysql_verification_migration_roundtrip_preserves_existing_data(world, monkeypatch):
+    import os
+    import sqlalchemy as sa
+    from alembic import command
+    from alembic.config import Config
+    from tests.test_phase1_migrations import snapshot
+    w = world
+    if w.engine.dialect.name != "mysql": pytest.skip("Migration roundtrip requires disposable MySQL")
+    monkeypatch.setattr(settings, "SQLALCHEMY_DATABASE_URI", os.environ["PHASE2_TEST_DATABASE_URI"])
+    w.db.add(AuthSession(user_id=w.alice.id, token_hash="a" * 64, csrf_token_hash="b" * 64,
+                         expires_at=datetime.utcnow() + timedelta(hours=1)))
+    # An exhausted/invalidated challenge is not evidence of verified ownership.
+    w.db.add(EmailOTP(email=w.bob.email, otp_hash="c" * 64, attempt_count=5, used_at=datetime.utcnow(),
+                     expires_at=datetime.utcnow(), delivery_status="sent"))
+    w.db.commit()
+    w.db.close()
+    with w.engine.connect() as connection:
+        inspector = sa.inspect(connection)
+        tables = {name: [c["name"] for c in inspector.get_columns(name) if c["name"] != "email_verified_at"]
+                  for name in inspector.get_table_names() if name != "alembic_version"}
+        before = snapshot(connection, tables)
+    config = Config("alembic.ini")
+    for _ in range(2):
+        command.downgrade(config, "riq_003")
+        with w.engine.connect() as connection:
+            assert snapshot(connection, tables) == before
+            assert "email_verified_at" not in {c["name"] for c in sa.inspect(connection).get_columns("users")}
+        command.upgrade(config, "head")
+        with w.engine.connect() as connection:
+            assert snapshot(connection, tables) == before
+            verified = dict(connection.execute(sa.text("SELECT username,email_verified_at FROM users")).all())
+            assert verified["alice"] is not None
+            assert verified["bob"] is None and verified["institutional_system"] is None

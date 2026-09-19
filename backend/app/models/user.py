@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, Integer, String, text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, Integer, String, text
 from sqlalchemy.orm import relationship
 from app.models.base import Base, TimestampMixin
 
@@ -8,8 +8,9 @@ class User(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     username = Column(String(255), unique=True, index=True, nullable=False)
-    # Added by ChatGPT: future OTP-only users have no local password; existing hashes are retained.
+    # Added by ChatGPT: retain OTP-era identities and track verified email independently of suspension.
     hashed_password = Column(String(255), nullable=True)
+    email_verified_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
     is_system = Column(Boolean, nullable=False, default=False, server_default=text("0"))
