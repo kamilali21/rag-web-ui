@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Book, BookOpen, Home, LogOut, Menu, MessageSquare, Sparkles, User } from "lucide-react";
 import Breadcrumb from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { api, ApiError } from "@/lib/api";
 
 // Added by ChatGPT: shared navigation for the reference sidebar and accessible mobile drawer.
 const navigation = [
@@ -21,14 +22,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
 
+  // Added by ChatGPT: validate the server session before rendering protected content.
   useEffect(() => {
-    if (!localStorage.getItem("token")) router.replace("/login");
+    let active = true;
+    api.get("/api/auth/me", { redirectOnUnauthorized: false, cache: "no-store" }).then(() => {
+      if (active) setAuthenticated(true);
+    }).catch(error => {
+      if (!active) return;
+      if (error instanceof ApiError && error.status === 401) router.replace("/login");
+      else setAuthError("Your session could not be checked. Please retry.");
+    });
+    return () => { active = false; };
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    router.push("/login");
+  const handleLogout = async () => {
+    setSigningOut(true); setAuthError("");
+    try {
+      await api.post("/api/auth/logout");
+      localStorage.removeItem("token");
+      router.replace("/login");
+    } catch { setAuthError("Sign out failed. Please try again."); }
+    finally { setSigningOut(false); }
   };
 
   // Added by ChatGPT: retain authentication and route behavior in both navigation layouts.
@@ -52,11 +70,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           );
         })}
       </nav>
-      <button className="app-nav-link app-signout" onClick={handleLogout}>
+      <button className="app-nav-link app-signout" onClick={handleLogout} disabled={signingOut}>
         <LogOut size={24} strokeWidth={1.6} aria-hidden="true" /> Sign out
       </button>
     </>
   );
+
+  if (!authenticated) return <main className="auth-page"><div className="w-full max-w-md rounded-lg bg-white p-8 space-y-4 text-center">
+    <p role={authError ? "alert" : "status"}>{authError || "Checking session..."}</p>
+    {authError && <button className="primary-action" onClick={() => window.location.reload()}>Retry</button>}
+  </div></main>;
 
   return (
     <div className="app-shell">
@@ -77,6 +100,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </header>
       <main id="main-content" className="app-main" tabIndex={-1}>
         <Breadcrumb />
+        {authError && <p role="alert" className="text-red-700">{authError}</p>}
         {children}
       </main>
     </div>

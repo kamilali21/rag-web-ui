@@ -13,17 +13,62 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 2 Complete - Stopped Before Phase 3
+## Current Gate: Phase 3 Code Tested - Live Email Acceptance Pending
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
-- Deployment services: backend, frontend, MySQL, Chroma, MinIO, Nginx. All application containers were stopped when Phase 2 began; they were not started or reconfigured during this work.
+- Deployment services: backend, frontend, MySQL, Chroma, MinIO, Nginx. They were stopped during Phase 2 and were already running when Phase 3 resumed on 19 September. This resume did not restart or reconfigure them.
 - Original database revision: `3580c0dcd005`; current revision: `riq_003`.
 - Initial counts: 2 users, 2 knowledge bases, 4 documents, 190 chunks, 1 chat.
 - Actual configured providers: OpenAI-compatible chat, HuggingFace embeddings, Chroma vectors.
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
-- Phase 1 schema is implemented, applied and verified end to end. Phase 2 was explicitly authorized in the subsequent request and is now implemented and tested below. No SMTP OTP or public-catalog features are activated; stop before Phase 3.
+- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. Phase 3 was explicitly authorized and resumed from its uncommitted working tree. Email OTP remains disabled pending approved activation and real delivery verification. Stop before Phase 4.
+
+### Phase 3 Email OTP And Sessions - 19 September 2026
+
+<!-- Added by ChatGPT: resumed implementation, isolated evidence and a separate live acceptance gate. -->
+
+- Preserved and reviewed every existing Phase 3 file; no reset, restore, clean or source restart. Starting commit remains `9f4aac7`, tagged `researchiq-phase2-tested-20260916`.
+- Added request/verify OTP, method discovery, `/api/auth/me`, and server-side logout using the existing `email_otps`, `auth_sessions`, and `auth_rate_limits` tables. No schema/migration change or new application dependency.
+- SMTP uses verified STARTTLS or TLS with bounded timeouts. Six-digit codes are HMAC-hashed, expire after five minutes, have bounded attempts, and are single-use. Pending/failed deliveries cannot authenticate; resends invalidate earlier challenges. Provider exceptions never expose codes or credentials.
+- Database-serialized email/IP limits and cooldowns work across workers. IP limits are checked before allocating arbitrary new email keys. Forwarded IPs are trusted only from explicitly configured proxy peers. A bounded, opt-in cleanup command targets expired auth rows only; it was not run on deployment data.
+- Opaque random sessions and bound CSRF tokens are stored as hashes. Sessions are HttpOnly, fixed-expiry and revocable; login rotates the presented browser session. Cookie-authenticated mutations require exact Origin and CSRF; logout remains available to a disabled account holding its valid session/CSRF pair.
+- Secure host-only cookies are the default. The user explicitly approved an HTTP development exception, restricted to the documented loopback hostnames with separate cookie names. This is not production transport security.
+- `EMAIL_OTP_ENABLED=false` preserves legacy password/JWT login. Enabling OTP disables password registration, password token issuance and browser JWT authentication without an automatic fallback. API-key ownership checks and the Phase 2 role/allowlist policy are unchanged. Successful legacy login clears stale OTP cookies during an explicit maintenance rollback.
+- New verified users receive only Researcher. Existing active accounts keep their IDs/roles. University domains and allowlisting alone never grant Admin, and Admin never bypasses private ownership. Exact normalized identity checks reject legacy MySQL accent-equivalent email collisions.
+- Frontend email/code form, resend countdown, change-email, recoverable errors, session-checked dashboard, server logout, and current CSRF credentials for JSON and streamed chat are implemented in the existing styling. Invalid/missing login-method responses cannot expose a password fallback.
+- The resume fixed malformed-method fallback, disabled-account logout, unnecessary rate-row allocation after IP throttling, stale-cookie interference with legacy rollback, and a MySQL whole-second rounding edge that could report a 61-second resend cooldown. Removed an unnecessary missing-user locking read that could gap-lock concurrent signups; email serialization and unique constraints still protect identity creation. The earlier test inspector's MySQL repeatable-read snapshot was corrected rather than weakening assertions.
+- Removed exactly three user-authorized command-fragment artifacts: `earchiq-rag-baseline-v1..HEAD -- \\` contained only a generated Git name/status listing; `pect  \\` and `ted Phase 1 schema foundation and rollback guards` matched standard `less --help` byte-for-byte. They were untracked, so their removal is not a tracked Git deletion.
+- Preserved the user's changes to `frontend/src/lib/citations.ts` and its test file. They are not Phase 3 work and are excluded from the checkpoint. No other branch was removed or moved; nothing is pushed.
+- Docker definitions/volumes, existing research data, `.env` secrets, Chroma `/data` persistence, collection naming, embeddings and citation parsing are unchanged. A read-only request to the running backend confirmed `{"email_otp":false}`.
+
+#### Isolated Verification
+
+- **84 backend tests passed on MySQL 8**: 35 Phase 3 checks, 27 Phase 2 authorization checks, and 22 baseline RAG/provider checks. The existing migrations initialized a disposable RAM-backed database at `riq_003`. No live database or `.env` was mounted into tests.
+- **80 passed, 4 skipped on SQLite**. The four MySQL-only checks cover concurrent send, concurrent verify, concurrent distinct-user signup, and legacy accent-insensitive email collation; all four passed on MySQL.
+- Checks cover hashed storage, TLS/failure handling, OTP expiry/reuse/attempts/resends, email/IP limits, exact cooldown boundaries, cookie flags, CSRF/Origin, rotation/revocation, disabled/system accounts, role isolation, legacy cutover/rollback, bounded cleanup, and private-resource access.
+- Cookie-authenticated two-collection chat exercised the actual HTTP route, authorization, RAG service, citation stream and SQL persistence. External vector/embedding/LLM services were deterministic fixtures, not live-provider verification.
+- **36 frontend tests passed** in seven suites, including the two additional pre-existing user citation cases. TypeScript and the production build passed using isolated `.next-check` output; the running frontend build was not replaced.
+- Headless Chrome checked the built email/code screens at 1366x900 and 390x844: resend disabled state, invalid-code feedback, change-email interaction, no horizontal overflow and no JavaScript errors. Assets/API fixtures were intercepted in the browser; no preview server, exposed port or live authentication request was used.
+- Existing Pydantic/SQLAlchemy/Starlette deprecations and legacy Next.js configuration warnings remain; they did not fail tests or build and were not broadened into unrelated changes.
+- Tested source checkpoint: `researchiq-phase3-tested-20260919`, on `codex/master-integration`. This is a code/test checkpoint, not a live-verification tag.
+
+Repeat the backend checks from `backend/` in an isolated test environment:
+
+```sh
+EMAIL_OTP_ENABLED=false SQLALCHEMY_DATABASE_URI=sqlite:// python -m pytest tests/test_phase3_authentication.py tests/test_phase2_authorization.py tests/test_baseline_regressions.py tests/test_minimax_unit.py -q
+```
+
+For MySQL, the same fixture accepts `PHASE2_TEST_DATABASE_URI` only at
+`127.0.0.1/researchiq_phase2_test`, initialized through `riq_003`. It deletes
+fixture rows between tests: use a disposable database only. Frontend commands:
+`npm run test:ci -- --runInBand --silent`, `npx tsc --noEmit --incremental false`,
+and `RAG_NEXT_DIST_DIR=.next-check npm run build`.
+
+#### Pending Live Gate
+
+Follow `docs/phase3-authentication.md`: configure Brevo SMTP credentials and a verified sender locally, review the exact origin/trusted proxy, explicitly approve activation, verify real inbox receipt and browser session/logout, then test a synthetic upload/retrieval/cited chat with the deployed providers. No real email was sent by this implementation run, and no synthetic records were added to the live research database. The tested code checkpoint is not a claim of completed live acceptance or permission to begin Phase 4.
 
 ### Phase 2 Authorization Core - 16 September 2026
 
@@ -49,7 +94,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - The first test pass exposed incorrect test URLs for the existing API-key route (`/openapi/knowledge`, not `/openapi/knowledge-base`); those fixtures were corrected. Final SQLite and MySQL runs passed without failures. Existing dependency deprecation warnings remain unrelated to this phase.
 - No live OpenRouter/Chroma acceptance run or deployment restart was performed: application containers were stopped, and this request forbids changes to existing data. This checkpoint certifies Phase 2 code and isolated tests, not a new live-provider verification.
 - No schema change means no database downgrade is needed to reverse Phase 2 code. The pre-Phase-2 source checkpoint is `ad733e4`, which retains the Chroma persistence fix. Preserve unrelated working changes before any recovery operation.
-- Phase 3 and all later features are intentionally not started.
+- At the Phase 2 checkpoint, Phase 3 and later features had not been started. Phase 3 status is recorded separately above.
 
 From `backend/`, with development dependencies installed:
 
@@ -103,7 +148,7 @@ The authorization tests default to in-memory SQLite. Optional `PHASE2_TEST_DATAB
 
 The user updated the OpenRouter key, and the backend was recreated to load it. On 15 September 2026 the complete live acceptance test passed, including citation indices resolving to the synthetic document and page, saved answer verification and cleanup. The earlier 401 failure is resolved.
 
-That next gate completed in Phase 1. Authorization subsequently completed in the explicitly requested Phase 2 task; the next planned gate is Phase 3, which remains out of scope.
+That next gate completed in Phase 1. Authorization subsequently completed in Phase 2. Phase 3 is now the explicitly requested current gate, with real delivery/deployed acceptance still pending.
 
 ### Repeatable Checks
 
@@ -156,7 +201,7 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 
 1. Schema foundation, migration reversal and data preservation: completed in Phase 1.
 2. Authorization core and private access regression tests: completed in Phase 2, isolated verification only.
-3. SMTP OTP and secure revocable sessions, including real delivery verification.
+3. SMTP OTP and secure revocable sessions: current gate; real delivery/deployed acceptance pending.
 4. System-owned public corpus.
 5. Academic metadata.
 6. Public catalog and bookmarks.

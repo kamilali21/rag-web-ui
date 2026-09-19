@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
@@ -8,6 +8,15 @@ import { api, ApiError } from "@/lib/api";
 export default function RegisterPage() {
   const router = useRouter();
   const [error, setError] = useState("");
+  // Added by ChatGPT: OTP activation has one sign-in/sign-up flow, never a password fallback.
+  const [legacy, setLegacy] = useState(false);
+  useEffect(() => {
+    api.get("/api/auth/methods", { redirectOnUnauthorized: false, cache: "no-store" }).then(methods => {
+      if (typeof methods.email_otp !== "boolean") throw new Error("Invalid sign-in configuration");
+      if (methods.email_otp) router.replace("/login");
+      else setLegacy(true);
+    }).catch(() => setError("Registration is temporarily unavailable."));
+  }, [router]);
   const [validationErrors, setValidationErrors] = useState({
     email: "",
     password: "",
@@ -105,6 +114,10 @@ export default function RegisterPage() {
   };
 
   // Added by ChatGPT: registration inherits the same reference palette and control shapes.
+  if (!legacy) return <main className="auth-page"><div className="w-full max-w-md rounded-lg bg-white p-8 space-y-4 text-center">
+    <p role={error ? "alert" : "status"}>{error || "Loading sign-in..."}</p>
+    {error && <Link href="/login">Back to sign in</Link>}
+  </div></main>;
   return (
     <main className="auth-page">
       <div className="w-full max-w-md">

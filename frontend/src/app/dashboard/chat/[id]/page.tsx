@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useChat } from "ai/react";
 import { Send, User, Bot } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, authenticatedFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Answer } from "@/components/chat/answer";
 import { decodeChatAnswer } from "@/lib/citations";
@@ -59,13 +59,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     setMessages,
   } = useChat({
     api: `/api/chat/${params.id}/messages`,
-    headers: {
-      Authorization: `Bearer ${
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("token")
-          : ""
-      }`,
-    },
+    // Added by ChatGPT: current credentials without changing the citation stream.
+    fetch: authenticatedFetch,
   });
 
   useEffect(() => {

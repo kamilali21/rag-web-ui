@@ -3,15 +3,16 @@ from typing import Optional
 from jose import JWTError, jwt
 import bcrypt
 from app.core.config import settings
-from fastapi import Depends, HTTPException, status, Security
+from fastapi import Depends, HTTPException, status, Security, Request
 from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
 from app.services.api_key import APIKeyService
 from app.services.authorization import require_active_user, require_admin
+from app.services.auth_sessions import authenticate_session
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
@@ -34,14 +35,20 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt 
 
 def get_current_user(
+    request: Request,
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    token: Optional[str] = Depends(oauth2_scheme)
 ) -> User:
+    # Added by ChatGPT: OTP cutover rejects legacy JWTs; cookies never bypass CSRF via Bearer.
+    if settings.EMAIL_OTP_ENABLED:
+        return authenticate_session(db, request)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        raise credentials_exception
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")

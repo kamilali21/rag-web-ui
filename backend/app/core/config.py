@@ -2,6 +2,7 @@ import os
 from typing import List, Optional
 
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -30,6 +31,24 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
+
+    # Added by ChatGPT: explicit OTP cutover; unset mail settings never disrupt legacy login.
+    EMAIL_OTP_ENABLED: bool = False
+    AUTH_ORIGIN: str = ""
+    AUTH_ALLOW_LOCAL_HTTP: bool = False
+    AUTH_OTP_SECRET: str = ""
+    AUTH_TRUSTED_PROXIES: List[str] = []
+    OTP_TTL_SECONDS: int = Field(default=300, ge=300, le=600)
+    OTP_RESEND_SECONDS: int = Field(default=60, ge=30, le=300)
+    OTP_MAX_ATTEMPTS: int = Field(default=5, ge=1, le=10)
+    SESSION_TTL_SECONDS: int = Field(default=28800, ge=300, le=86400)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = Field(default=587, ge=1, le=65535)
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_SECURITY: str = "starttls"
+    SMTP_TIMEOUT_SECONDS: int = Field(default=10, ge=1, le=30)
 
     # Chat Provider settings
     CHAT_PROVIDER: str = os.getenv("CHAT_PROVIDER", "openai")

@@ -1,6 +1,6 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from requests.exceptions import RequestException
@@ -12,15 +12,65 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserResponse
-from app.services.authorization import assign_researcher, normalize_email, require_active_user
+from app.services.authorization import assign_researcher, normalize_email, require_active_user, effective_roles
+from app.schemas.authentication import OTPRequest, OTPVerification
+from app.services import auth_sessions, email_otp
 
 router = APIRouter()
+
+# Added by ChatGPT: a single configured cutover prevents password/JWT downgrade after OTP activation.
+def require_legacy_login():
+    if settings.EMAIL_OTP_ENABLED:
+        raise HTTPException(403, "Use email sign-in")
+
+
+@router.get("/methods")
+def auth_methods(response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return {"email_otp": settings.EMAIL_OTP_ENABLED}
+
+
+@router.post("/request-otp")
+def request_otp(payload: OTPRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    auth_sessions.require_origin(request)
+    response.headers["Cache-Control"] = "no-store"
+    return email_otp.request_code(db, str(payload.email), request)
+
+
+@router.post("/verify-otp", response_model=UserResponse)
+def verify_otp(payload: OTPVerification, request: Request, response: Response, db: Session = Depends(get_db)):
+    auth_sessions.require_origin(request)
+    user, (token, csrf) = email_otp.verify_code(db, str(payload.email), payload.code, request)
+    auth_sessions.set_session_cookies(response, token, csrf)
+    return user
+
+
+@router.get("/me")
+def current_identity(response: Response, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    response.headers["Cache-Control"] = "no-store"
+    return {"id": user.id, "username": user.username, "email": user.email,
+            "roles": sorted(effective_roles(db, user))}
+
+
+@router.post("/logout")
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    if settings.EMAIL_OTP_ENABLED:
+        auth_sessions.require_origin(request)
+        session = auth_sessions.find_session(db, request)
+        if session is not None:
+            auth_sessions.require_csrf(request, session)
+            session.revoked_at = datetime.utcnow()
+            db.commit()
+    auth_sessions.clear_session_cookies(response)
+    return {"message": "Signed out"}
+
 
 @router.post("/register", response_model=UserResponse)
 def register(*, db: Session = Depends(get_db), user_in: UserCreate) -> Any:
     """
     Register a new user.
     """
+    require_legacy_login()
     try:
         # Added by ChatGPT: registration can assign only researcher, never allowlist-based admin.
         email = normalize_email(str(user_in.email))
@@ -59,11 +109,13 @@ def register(*, db: Session = Depends(get_db), user_in: UserCreate) -> Any:
 
 @router.post("/token", response_model=Token)
 def login_access_token(
+    response: Response,
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
     """
+    require_legacy_login()
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -77,6 +129,8 @@ def login_access_token(
     access_token = security.create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    # Added by ChatGPT: stale OTP CSRF cookies must not shadow this explicitly enabled legacy token.
+    auth_sessions.clear_session_cookies(response)
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/test-token", response_model=UserResponse)
