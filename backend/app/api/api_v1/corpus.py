@@ -14,6 +14,8 @@ from app.models import Document, User
 from app.models.knowledge import ProcessingTask
 from app.services import public_corpus as corpus
 from app.services.authorization import require_admin
+from app.schemas.academic import MetadataPatch, MetadataRead
+from app.services import academic
 
 router = APIRouter()
 Database = Annotated[Session, Depends(get_db)]
@@ -86,6 +88,17 @@ def content(document_id: int, db: Database, actor: Actor, include_unpublished: b
     return StreamingResponse(chunks(), media_type=doc.content_type, headers={
         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(doc.file_name, safe='')}",
         "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
+# Added by ChatGPT: academic fields cannot set ownership, processing or publication state.
+@router.get("/documents/{document_id}/metadata", response_model=MetadataRead)
+def metadata(document_id: int, db: Database, actor: Actor, include_unpublished: bool = False):
+    return academic.read_metadata(db, actor, document_id, include_unpublished=include_unpublished)
+
+
+@router.patch("/documents/{document_id}/metadata", response_model=MetadataRead)
+def edit_metadata(document_id: int, payload: MetadataPatch, db: Database, actor: Actor):
+    return academic.update_metadata(db, actor, document_id, payload)
 
 
 @router.post("/query")

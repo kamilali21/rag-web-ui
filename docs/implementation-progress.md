@@ -13,7 +13,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 4 Public Corpus - Tested And Deployed; Live Admin Acceptance Pending
+## Current Gate: Phase 5 Academic Metadata - Tested And Deployed
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
@@ -23,7 +23,36 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Actual configured providers: OpenAI-compatible chat, HuggingFace embeddings, Chroma vectors.
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
-- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. On 20 September the user confirmed Phase 3 complete at `0860607` and authorized Phase 4 only, plus the two sign-in control changes below. Do not begin Phase 5.
+- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. The user confirmed Phase 3 complete at `0860607`; Phase 4 is checkpointed at `eee6c37`. On 21 September the user explicitly authorized their own admin appointment and Phase 5. Do not begin Phase 6.
+
+### Phase 5 Academic Metadata - 21 September 2026
+
+<!-- Added by ChatGPT: explicit appointment, previous-gate acceptance and academic metadata wiring. -->
+
+- Confirmed the requested username/email identify the same active, verified human account (user ID 1, `mkamilali`). At the user's explicit request, added its admin role and active exact-email allowlist entry in one transaction; retained the researcher role, password, sessions, verification, superuser=false and all ownership. No domain-based promotion or other account changes. The allowlist records the requesting account as `added_by`. Code rollback does not undo this separate authorized data operation.
+- Closed Phase 4's remaining live service gate using a uniquely named synthetic document: real MinIO upload/copy, parser/chunker, configured embeddings, Chroma indexing, draft hiding, admin publication/download/retrieval/rename/unpublication, researcher mutation denial and cleanup passed. An initial inspector snapshot mistake was corrected by ending its MySQL read transaction; both attempts cleaned their fixtures. All pre-existing table hashes and private vector counts matched afterward. This was service-level acceptance, not a new password/OTP or LLM conversation.
+- Read the master Phase 5 definition, Phase 4 checkpoint, current progress, migrations, existing academic/department models, session/authorization policies and tests before implementation. The existing schema and indexes suffice: no migration, provider change, new dependency or UI change.
+- Added bounded academic metadata read/PATCH contracts, normalized department reference reads/admin create/edit/deactivate, active-department validation and partial-update year/date consistency. Academic edits reuse corpus/document locks and cannot change ownership, publication, filenames, source files or embeddings. Private metadata remains inaccessible through these public-corpus endpoints, even to admins.
+- No unofficial UAF department seeds or fabricated bibliography. Initial titles remain ingestion filenames until curated. No Phase 6 search/bookmarks/Public Library UI, Phase 7 forms, private metadata workflow, compare/analyze or LLM metadata extraction.
+- Pre-change source checkpoint: `researchiq-pre-phase5-20260921` at `eee6c37`. The two unrelated citation edits remain preserved and outside Phase 5.
+- Combined Phase 5/4/3/2 and baseline/provider gate: **168 passed on disposable MySQL 8**; **156 passed, 12 MySQL-only skipped on SQLite**. This includes 43 Phase 5 cases (41 passed / 2 skipped on SQLite): validated round trips, atomic PATCH/clear semantics, immutable file/vector identity, department deactivation/history, duplicate conflict handling, current-role revocation, private/draft isolation, session/CSRF and MySQL concurrent creates/disjoint edits. Existing dependency deprecation warnings remain unrelated.
+- Frontend regression tests: **41 passed**; `npx tsc --noEmit --incremental false` passed. No frontend source was changed for Phase 5, so no frontend rebuild or temporary preview was needed. The two unrelated citation changes remain outside this checkpoint.
+- Before deployment, confirmed zero active ingestion jobs and saved ignored mode-0600 backup `.local/backups/pre-phase5-20260921.sql`. Restarted only `rag-web-ui-backend-1`; health through the original Nginx URL passed, and anonymous department access returned 401. Frontend/data services, Docker files, volumes and `.env` were not modified. Chroma remains on the existing `rag-web-ui_chroma_data:/data` mount.
+- Live HTTP acceptance through Nginx passed using short-lived maintenance sessions for the explicitly appointed admin and a synthetic researcher: department create/deactivate/read, upload/processing, academic edit/validation, researcher denial, private-ID denial, draft hiding, publish/read/download, real configured embedding/Chroma retrieval, unpublish and delete. These sessions test deployed authorization/CSRF, not password/OTP issuance. No real email or LLM call was made.
+- Removed the exact synthetic sessions, researcher/private fixture, department, document, upload/task, objects and vector chunks. All pre-existing non-auth table hashes and private vector counts matched before/after. Final read-only checks confirmed zero corpus documents/chunks/tasks/vectors/objects and the requested admin+researcher roles with superuser=false. No actual UAF documents or department list were imported. Both disposable test containers were stopped and removed; the six existing application services remain running.
+- Dedicated tested checkpoint tag: `researchiq-phase5-tested-20260921`; nothing pushed, previous branches/tags preserved. API contracts, validation limits and recovery boundaries are in `docs/phase5-academic-metadata.md`. Phase 6 has not been started.
+
+Phase 5 checkpoint files:
+
+- `backend/app/api/api_v1/api.py`, `backend/app/api/api_v1/corpus.py`, `backend/app/api/api_v1/departments.py`
+- `backend/app/schemas/academic.py`, `backend/app/services/academic.py`
+- `backend/tests/test_phase5_academic_metadata.py`
+- `docs/implementation-progress.md`, `docs/phase5-academic-metadata.md`
+
+Repeat the Phase 5 gate in the same isolated runtime by adding
+`tests/test_phase5_academic_metadata.py` before the Phase 4/3/2 and baseline files
+in the combined command below. The guarded MySQL fixture still requires
+`127.0.0.1/researchiq_phase2_test` at `riq_004`, never the production database.
 
 ### Phase 4 Public Corpus - 20 September 2026
 
@@ -275,8 +304,8 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 1. Schema foundation, migration reversal and data preservation: completed in Phase 1.
 2. Authorization core and private access regression tests: completed in Phase 2, isolated verification only.
 3. SMTP OTP and secure revocable sessions: completed; user confirmed Phase 3 acceptance.
-4. System-owned public corpus: backend tested and deployed; live admin lifecycle acceptance pending explicit appointment.
-5. Academic metadata.
+4. System-owned public corpus: tested/deployed; live service lifecycle and cleanup verified after explicit admin appointment.
+5. Academic metadata: completed; tested and deployed with live API/storage/retrieval acceptance.
 6. Public catalog and bookmarks.
 7. Admin ingestion and publication lifecycle.
 8. Private library parity.
