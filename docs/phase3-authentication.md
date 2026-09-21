@@ -41,7 +41,7 @@ no temporary preview server was created.
 3. `/login`: enter email or username plus password. Once verified, no OTP is
    needed for routine sign-in. An unverified account with a correct password is
    taken to verification. Invalid passwords reveal no verification state.
-4. Existing OTP-only users choose **Set or reset password**, prove inbox ownership
+4. Existing OTP-only users choose **Reset password**, prove inbox ownership
    with a purpose-bound recovery code, and choose a new password. This updates the
    same account, preserving its documents and roles. Forgotten passwords use the
    same flow. Reset revokes all browser sessions and outstanding email challenges;

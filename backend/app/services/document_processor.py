@@ -238,7 +238,8 @@ def process_document_background(
     task_id: int,
     db: Session = None,
     chunk_size: int = 1000,
-    chunk_overlap: int = 200
+    chunk_overlap: int = 200,
+    retain_source: bool = False,
 ) -> None:
     """Process document in background"""
     logger = logging.getLogger(__name__)
@@ -273,7 +274,7 @@ def process_document_background(
             )
             logger.info(f"Task {task_id}: File downloaded successfully")
         except MinioException as e:
-            error_msg = f"Failed to download temp file: {str(e)}"
+            error_msg = "Failed to download public source" if retain_source else f"Failed to download temp file: {str(e)}"
             logger.error(f"Task {task_id}: {error_msg}")
             raise Exception(error_msg)
         
@@ -330,13 +331,15 @@ def process_document_background(
                 
                 # 删除临时文件
                 logger.info(f"Task {task_id}: Removing temporary file from MinIO")
-                minio_client.remove_object(
-                    bucket_name=settings.MINIO_BUCKET_NAME,
-                    object_name=temp_path
-                )
+                # Added by ChatGPT: public ingestion retains its staged source for safe retries.
+                if not retain_source:
+                    minio_client.remove_object(
+                        bucket_name=settings.MINIO_BUCKET_NAME,
+                        object_name=temp_path
+                    )
                 logger.info(f"Task {task_id}: Temporary file removed")
             except MinioException as e:
-                error_msg = f"Failed to move file to permanent storage: {str(e)}"
+                error_msg = "Failed to store public source" if retain_source else f"Failed to move file to permanent storage: {str(e)}"
                 logger.error(f"Task {task_id}: {error_msg}")
                 raise Exception(error_msg)
             
@@ -351,6 +354,10 @@ def process_document_background(
                 knowledge_base_id=kb_id
             )
             db.add(document)
+            if retain_source:
+                # Link partial public documents so deletion cannot race a running ingestion task.
+                db.flush()
+                task.document_id = document.id
             db.commit()
             db.refresh(document)
             logger.info(f"Task {task_id}: Document record created with ID {document.id}")
@@ -388,6 +395,9 @@ def process_document_background(
             
             # 7. 添加到向量存储
             logger.info(f"Task {task_id}: Adding chunks to vector store")
+            if retain_source:
+                # Added by ChatGPT: persist public cleanup IDs before any partial external vector write.
+                db.commit()
             vector_store.add_documents(chunks)
             # 移除 persist() 调用，因为新版本不需要
             logger.info(f"Task {task_id}: Chunks added to vector store")
@@ -417,19 +427,24 @@ def process_document_background(
                 logger.warning(f"Task {task_id}: Failed to clean up local temp file: {str(e)}")
         
     except Exception as e:
-        logger.error(f"Task {task_id}: Error processing document: {str(e)}")
-        logger.error(f"Task {task_id}: Stack trace: {traceback.format_exc()}")
+        # Added by ChatGPT: public jobs expose no parser/provider internals in task errors or logs.
+        if retain_source:
+            logger.error("Public task %s failed (%s)", task_id, type(e).__name__)
+        else:
+            logger.error(f"Task {task_id}: Error processing document: {str(e)}")
+            logger.error(f"Task {task_id}: Stack trace: {traceback.format_exc()}")
         task.status = "failed"
-        task.error_message = str(e)
+        task.error_message = "Public document processing failed" if retain_source else str(e)
         db.commit()
         
         # 清理临时文件
         try:
             logger.info(f"Task {task_id}: Cleaning up temporary file after error")
-            minio_client.remove_object(
-                bucket_name=settings.MINIO_BUCKET_NAME,
-                object_name=temp_path
-            )
+            if not retain_source:
+                minio_client.remove_object(
+                    bucket_name=settings.MINIO_BUCKET_NAME,
+                    object_name=temp_path
+                )
             logger.info(f"Task {task_id}: Temporary file cleaned up after error")
         except:
             logger.warning(f"Task {task_id}: Failed to clean up temporary file after error")

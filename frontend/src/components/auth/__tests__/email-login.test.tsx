@@ -18,6 +18,14 @@ const get = api.get as jest.Mock;
 
 beforeEach(() => { jest.clearAllMocks(); localStorage.clear(); });
 
+// Added by ChatGPT: only the redundant sign-in shortcut is removed, not verification enforcement.
+test('sign-in exposes Reset password without a manual Verify email shortcut', () => {
+  render(<PasswordLogin emailOTP />);
+  expect(screen.queryByRole('button', { name: 'Verify email' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Reset password' }));
+  expect(screen.getByText('Reset your password')).toBeInTheDocument();
+});
+
 async function sendCode() {
   fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'alice@example.com' } });
   fireEvent.click(screen.getByRole('button', { name: 'Send code' }));

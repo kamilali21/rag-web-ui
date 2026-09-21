@@ -13,7 +13,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 3 Password Flow Tested - Revised Live Acceptance Pending
+## Current Gate: Phase 4 Public Corpus - Tested And Deployed; Live Admin Acceptance Pending
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
@@ -23,7 +23,48 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Actual configured providers: OpenAI-compatible chat, HuggingFace embeddings, Chroma vectors.
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
-- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. The user confirmed the initial OTP flow worked, then explicitly changed the desired contract to registration/password login with one-time email verification. The revision below supersedes the historical passwordless design. Stop before Phase 4.
+- Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. On 20 September the user confirmed Phase 3 complete at `0860607` and authorized Phase 4 only, plus the two sign-in control changes below. Do not begin Phase 5.
+
+### Phase 4 Public Corpus - 20 September 2026
+
+<!-- Added by ChatGPT: backend corpus foundation and explicitly approved minimal lifecycle endpoints. -->
+
+- Inspected the Master Integration Plan, Phase 3 checkpoint, current migrations, authorization/ingestion/retrieval code and regression tests before changing code. Preserved both uncommitted citation files and all previous branches/tags.
+- Clarified the plan's scope mismatch: Phase 4 originally provisions only the shared KB, while lifecycle workflows appear in Phase 7. The user explicitly chose **minimal working backend lifecycle endpoints now**. No Public Library UI, academic metadata editing, departments, bookmarks, compare/analyze or public/private chat-source modes were implemented.
+- Startup idempotently creates the dedicated inactive, passwordless `researchiq_system` owner and one `UAF Research Corpus` (`public`, system-managed). Unique-owner locking serializes provisioning; colliding human identities or malformed ownership fail closed. Existing private KBs are never adopted, transferred or changed. No migration/schema/dependency change; head remains `riq_004`.
+- Added explicit `/api/corpus` backend routes and a corpus service. Researchers discover the corpus and read/download/query published documents. Explicit role plus current exact-email allowlisting is required for upload, draft review, filename edits, publish/unpublish, retry and deletion. The legacy private KB/chat/API-key routes retain their original owner-only boundaries. Browser session/Origin/CSRF enforcement remains unchanged.
+- Reused the existing parser/chunker/embedding/vector/MinIO pipeline with an opt-in public-processing flag. Partial public documents are linked to their task early; failed sources remain retryable; successful staging copies are removed. Private processing uses its unchanged defaults. Publication uses only the existing lifecycle fields on the metadata row, with the required title initialized from the filename; actual academic metadata remains Phase 5.
+- Deletion archives before external cleanup, deletes exact chunk IDs in bounded batches, and retains hidden records if cleanup fails. Retrying is idempotent; deletion tombstones cannot be republished. Filename edits do not move source files or change chunk IDs, and original storage names remain protected against overwrite.
+- Public retrieval is bounded and SQL-authorized after the vector call. Draft/private/stale chunks and forged vector text cannot become returned evidence. Corpus scope/ownership and publication are rechecked; returned content/document identity comes from authorized SQL chunks. This is evidence retrieval, not a new LLM pipeline or public chat implementation.
+- Removed only the manual **Verify email** shortcut from sign-in and renamed the recovery action/heading to **Reset password**. Automatic verification for unfinished/future registrations remains enforced. Read-only live inspection found 5 human accounts, 4 verified, and no effective admins; no account verification or role/allowlist rows were changed.
+- Combined Phase 4/3/2 and baseline/provider regression gate: **125 passed on disposable MySQL 8**; **115 passed, 10 MySQL-only skipped on SQLite**. After the final draft-initialization locking adjustment, all **29 Phase 4 MySQL tests passed again**. Frontend: **41 tests**, TypeScript, local production build and deployment image build passed. Existing Next/deprecation warnings remain unrelated. Disposable test containers were removed.
+- Deployed on the existing `http://127.0.0.1.nip.io` URL by recreating only backend/frontend and validating/reloading Nginx. Login/register/health returned 200; anonymous corpus/document/content/identity requests returned 401. OTP remains enabled. No temporary preview, SMTP messages or live LLM calls were used for these checks; `.env`, Docker configuration and volumes were not changed.
+- Post-deployment receipts match all 16 tracked pre-existing non-auth tables, excluding only the newly provisioned system owner/corpus. Private Chroma counts remain `kb_1=185`, `kb_2=203`, with persistence at `/data`. On 21 September a read-only live service check confirmed corpus ID 8, public/system-managed scope, inactive passwordless system ownership and an empty researcher query result. The new corpus contains no imported research yet.
+- Deployed Chrome checks passed at 1366px and 390px: removed verification shortcut, updated reset-password action and recovery view, no horizontal overflow or JavaScript errors. These checks made no credential submissions or email requests.
+- Pre-change source tag: `researchiq-pre-phase4-20260920` at `0860607`; retained frontend image `rag-web-ui-frontend:pre-phase4-20260920`. Private database backup `.local/backups/pre-phase4-20260920.sql` and data/vector receipts are ignored and mode 0600; never commit or share them.
+- Operational boundaries: no live admin exists, so live authenticated admin upload/publish/delete acceptance requires an explicit appointment, not automatic promotion. In-process BackgroundTasks can strand jobs after a process crash, admin writes serialize per corpus, and bounded post-filtering can reduce retrieval recall when drafts dominate candidates. These limits and the exact API are documented in `docs/phase4-public-corpus.md`.
+- Dedicated tested checkpoint tag: `researchiq-phase4-tested-20260921`. The two pre-existing citation files remain outside this checkpoint; no branches were removed and nothing was pushed. Phase 5 has not been started.
+
+Phase 4 checkpoint files:
+
+- `backend/app/api/api_v1/api.py`, `backend/app/api/api_v1/corpus.py`
+- `backend/app/main.py`, `backend/app/services/public_corpus.py`
+- `backend/app/services/document_processor.py`, `backend/tests/test_phase4_public_corpus.py`
+- `frontend/src/components/auth/password-login.tsx`, `frontend/src/components/auth/email-login.tsx`
+- `frontend/src/components/auth/__tests__/email-login.test.tsx`
+- `docs/implementation-progress.md`, `docs/phase4-public-corpus.md`, `docs/phase3-authentication.md`
+
+Repeat the combined backend gate in an isolated test runtime:
+
+```sh
+EMAIL_OTP_ENABLED=false SQLALCHEMY_DATABASE_URI=sqlite:// python -m pytest tests/test_phase4_public_corpus.py tests/test_phase3_authentication.py tests/test_phase2_authorization.py tests/test_baseline_regressions.py tests/test_minimax_unit.py -q
+```
+
+MySQL uses the existing guarded `PHASE2_TEST_DATABASE_URI` fixture at
+`127.0.0.1/researchiq_phase2_test`, initialized to `riq_004`. It deletes fixture
+rows and must never be pointed at the live database. Frontend verification remains
+`npm run test:ci -- --runInBand --silent`, `npx tsc --noEmit --incremental false`,
+and `RAG_NEXT_DIST_DIR=.next-check npm run build`.
 
 ### Phase 3 Registration And Password Sign-In Revision - 19 September 2026
 
@@ -180,7 +221,7 @@ The authorization tests default to in-memory SQLite. Optional `PHASE2_TEST_DATAB
 
 The user updated the OpenRouter key, and the backend was recreated to load it. On 15 September 2026 the complete live acceptance test passed, including citation indices resolving to the synthetic document and page, saved answer verification and cleanup. The earlier 401 failure is resolved.
 
-That next gate completed in Phase 1. Authorization subsequently completed in Phase 2. Phase 3 is now the explicitly requested current gate, with real delivery/deployed acceptance still pending.
+That next gate completed in Phase 1. Authorization subsequently completed in Phase 2. Later authentication and corpus results supersede this historical entry; see the current gate above.
 
 ### Repeatable Checks
 
@@ -233,8 +274,8 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 
 1. Schema foundation, migration reversal and data preservation: completed in Phase 1.
 2. Authorization core and private access regression tests: completed in Phase 2, isolated verification only.
-3. SMTP OTP and secure revocable sessions: current gate; real delivery/deployed acceptance pending.
-4. System-owned public corpus.
+3. SMTP OTP and secure revocable sessions: completed; user confirmed Phase 3 acceptance.
+4. System-owned public corpus: backend tested and deployed; live admin lifecycle acceptance pending explicit appointment.
 5. Academic metadata.
 6. Public catalog and bookmarks.
 7. Admin ingestion and publication lifecycle.

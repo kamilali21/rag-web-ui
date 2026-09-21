@@ -129,9 +129,9 @@ export default function PasswordLogin({ emailOTP = false }: { emailOTP?: boolean
             </button>
           </form>
 
-          {emailOTP && <div className="flex flex-wrap justify-between gap-3 text-sm text-green-800">
-            <button type="button" onClick={() => setVerificationEmail("")}>Verify email</button>
-            <button type="button" onClick={() => setRecovery(true)}>Set or reset password</button>
+          {/* Added by ChatGPT: verification remains automatic for unfinished registrations. */}
+          {emailOTP && <div className="text-right text-sm text-green-800">
+            <button type="button" onClick={() => setRecovery(true)}>Reset password</button>
           </div>}
 
           <div className="text-center">
