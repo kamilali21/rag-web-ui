@@ -2,6 +2,7 @@
 import hashlib
 import logging
 import math
+import re
 from datetime import datetime
 from io import BytesIO
 from pathlib import PurePosixPath
@@ -9,10 +10,11 @@ from uuid import uuid4
 from zipfile import BadZipFile, ZipFile
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.mysql import match as mysql_match
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
@@ -20,6 +22,7 @@ from app.core.minio import get_minio_client
 from app.db.session import SessionLocal
 from app.models import AcademicDocumentMetadata, Document, DocumentChunk, KnowledgeBase, User
 from app.models.knowledge import DocumentUpload, ProcessingTask
+from app.models.research import Bookmark, Department
 from app.services.authorization import require_active_user, require_admin, require_corpus_admin
 from app.services.document_processor import process_document_background
 from app.services.embedding.embedding_factory import EmbeddingsFactory
@@ -119,6 +122,78 @@ def document_summary(document: Document):
             "file_name": document.file_name, "file_size": document.file_size,
             "content_type": document.content_type, "created_at": document.created_at,
             "publication_status": document.academic_metadata.publication_status if document.academic_metadata else "draft"}
+
+
+# Added by ChatGPT: bounded relational discovery extends the existing corpus list, not the RAG pipeline.
+def list_documents(db: Session, actor: User, *, before_id=None, limit=50, include_unpublished=False,
+                   search="", author="", department_id=None, year_from=None, year_to=None, document_type=None, bookmarked=False):
+    corpus = get_corpus(db, actor, manage=include_unpublished)
+    if year_from is not None and year_to is not None and year_from > year_to:
+        raise HTTPException(422, "Start year must not exceed end year")
+    metadata = AcademicDocumentMetadata
+    query = db.query(Document, Department, Bookmark.id).outerjoin(metadata, metadata.document_id == Document.id).outerjoin(
+        Department, Department.id == metadata.department_id).outerjoin(Bookmark, and_(Bookmark.document_id == Document.id,
+        Bookmark.user_id == actor.id)).options(contains_eager(Document.academic_metadata)).filter(
+        Document.knowledge_base_id == corpus.id)
+    if bookmarked:
+        query = query.filter(Bookmark.id.isnot(None))
+    if not include_unpublished:
+        query = query.filter(metadata.publication_status == "published")
+    if before_id is not None:
+        query = query.filter(Document.id < before_id)
+    if department_id is not None:
+        query = query.filter(metadata.department_id == department_id)
+    if document_type is not None:
+        query = query.filter(metadata.document_type == document_type)
+    if year_from is not None:
+        query = query.filter(metadata.publication_year >= year_from)
+    if year_to is not None:
+        query = query.filter(metadata.publication_year <= year_to)
+    if author.strip():
+        query = query.filter(metadata.authors_text.icontains(author.strip(), autoescape=True))
+    if search.strip():
+        words = re.findall(r"[^\W_]+", search, flags=re.UNICODE)
+        if not words:
+            return []
+        if len(words) > 20:
+            raise HTTPException(422, "Use up to 20 search words")
+        indexed_words = [word for word in words if len(word) >= 3]
+        if db.bind.dialect.name == "mysql" and indexed_words:
+            # Only normalized words become boolean prefix terms; user operators never reach MATCH syntax.
+            query = query.filter(mysql_match(metadata.title, metadata.authors_text, metadata.abstract,
+                against=" ".join(f"+{word}*" for word in indexed_words), in_boolean_mode=True))
+        # ponytail: short acronyms/author substrings scan scoped rows; add a measured ngram index if needed.
+        # SQLite is a lightweight fallback; production uses FULLTEXT for ordinary words.
+        for word in words if db.bind.dialect.name != "mysql" else [word for word in words if len(word) < 3]:
+            query = query.filter(or_(*(column.icontains(word, autoescape=True)
+                for column in (metadata.title, metadata.authors_text, metadata.abstract))))
+    result = []
+    for document, department, bookmark_id in query.order_by(Document.id.desc()).limit(min(max(limit, 1), 100)).all():
+        academic = document.academic_metadata
+        result.append({**document_summary(document),
+            "title": academic.title if academic else document.file_name,
+            "authors_text": academic.authors_text if academic else None,
+            "department_id": academic.department_id if academic else None,
+            "department_name": department.name if department else None,
+            "document_type": academic.document_type if academic else None,
+            "publication_year": academic.publication_year if academic else None,
+            "is_bookmarked": bookmark_id is not None})
+    return result
+
+
+def set_bookmark(db: Session, actor: User, document_id: int, saved: bool):
+    """Added by ChatGPT: idempotent user-owned references, never copies or publication permissions."""
+    corpus = get_corpus(db, actor)
+    # Current reads serialize bookmarks with unpublish/delete and concurrent duplicate saves.
+    document = document_query(db, corpus.id).filter(Document.id == document_id).with_for_update().first()
+    if document is None:
+        raise HTTPException(404, "Document not found")
+    bookmark = db.query(Bookmark).filter_by(user_id=actor.id, document_id=document_id).with_for_update().first()
+    if saved and bookmark is None:
+        db.add(Bookmark(user_id=actor.id, document_id=document_id))
+    elif not saved and bookmark is not None:
+        db.delete(bookmark)
+    db.commit()
 
 
 def _filename(name: str) -> str:

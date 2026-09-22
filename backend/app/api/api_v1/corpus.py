@@ -1,16 +1,16 @@
 """Added by ChatGPT: minimal public corpus API, without catalog/academic/analysis UI contracts."""
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.db.session import get_db
-from app.models import Document, User
+from app.models import User
 from app.models.knowledge import ProcessingTask
 from app.services import public_corpus as corpus
 from app.services.authorization import require_admin
@@ -56,12 +56,14 @@ def ensure_corpus(db: Database, actor: Actor):
 
 @router.get("/documents")
 def documents(db: Database, actor: Actor, before_id: int | None = Query(None, ge=1),
-              limit: int = Query(50, ge=1, le=100), include_unpublished: bool = False):
-    kb = corpus.get_corpus(db, actor, manage=include_unpublished)
-    query = corpus.document_query(db, kb.id, published=not include_unpublished).options(selectinload(Document.academic_metadata))
-    if before_id is not None:
-        query = query.filter(Document.id < before_id)
-    return [corpus.document_summary(doc) for doc in query.order_by(Document.id.desc()).limit(limit).all()]
+              limit: int = Query(50, ge=1, le=100), include_unpublished: bool = False,
+              search: str = Query("", max_length=200), author: str = Query("", max_length=200),
+              department_id: int | None = Query(None, ge=1), year_from: int | None = Query(None, ge=1000, le=9999),
+              year_to: int | None = Query(None, ge=1000, le=9999),
+              document_type: Literal["paper", "thesis", "report", "other"] | None = None, bookmarked: bool = False):
+    # Added by ChatGPT: preserve the array/cursor contract while adding server-side academic filters.
+    return corpus.list_documents(db, actor, before_id=before_id, limit=limit, include_unpublished=include_unpublished,
+        search=search, author=author, department_id=department_id, year_from=year_from, year_to=year_to, document_type=document_type, bookmarked=bookmarked)
 
 
 @router.get("/documents/{document_id}")
@@ -70,7 +72,7 @@ def document(document_id: int, db: Database, actor: Actor, include_unpublished: 
 
 
 @router.get("/documents/{document_id}/content")
-def content(document_id: int, db: Database, actor: Actor, include_unpublished: bool = False):
+def content(document_id: int, db: Database, actor: Actor, include_unpublished: bool = False, inline: bool = False):
     doc = corpus.get_document(db, actor, document_id, manage=include_unpublished)
     path = corpus._object_path(doc.knowledge_base_id, doc.file_path)
     try:
@@ -85,9 +87,26 @@ def content(document_id: int, db: Database, actor: Actor, include_unpublished: b
             response.close()
             response.release_conn()
 
-    return StreamingResponse(chunks(), media_type=doc.content_type, headers={
-        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(doc.file_name, safe='')}",
-        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+    # Added by ChatGPT: opt-in PDF/plain-text viewing; other formats remain downloads, never active HTML.
+    safe_inline = inline and doc.content_type in {"application/pdf", "text/plain", "text/markdown"}
+    media_type = "text/plain" if safe_inline and doc.content_type == "text/markdown" else doc.content_type
+    return StreamingResponse(chunks(), media_type=media_type, headers={
+        "Content-Disposition": f"{'inline' if safe_inline else 'attachment'}; filename*=UTF-8''{quote(doc.file_name, safe='')}",
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "sandbox"})
+
+
+# Added by ChatGPT: bookmarks always derive their owner from the authenticated session.
+@router.post("/documents/{document_id}/bookmark", status_code=204)
+def save_bookmark(document_id: int, db: Database, actor: Actor):
+    corpus.set_bookmark(db, actor, document_id, True)
+    return Response(status_code=204)
+
+
+@router.delete("/documents/{document_id}/bookmark", status_code=204)
+def remove_bookmark(document_id: int, db: Database, actor: Actor):
+    corpus.set_bookmark(db, actor, document_id, False)
+    return Response(status_code=204)
 
 
 # Added by ChatGPT: academic fields cannot set ownership, processing or publication state.

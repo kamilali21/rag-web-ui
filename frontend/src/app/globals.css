@@ -138,6 +138,47 @@
 .document-details dt { color: hsl(var(--muted-foreground)); }
 .document-details dd { overflow-wrap: anywhere; }
 
+/* Added by ChatGPT: Public Library uses the existing shell with bounded metadata/filter surfaces. */
+.library-heading-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 10px; }
+.public-corpus-name { font-size: 18px; line-height: 26px; font-weight: 600; margin: 0 0 16px; }
+.public-filters { display: grid; grid-template-columns: minmax(130px,1fr) minmax(160px,1.3fr) repeat(2,minmax(85px,.6fr)) minmax(105px,.8fr); align-items: end; gap: 10px; margin: 16px 0; }
+.public-filters label { display: grid; gap: 5px; min-width: 0; font-size: 13px; }
+.public-filters .public-saved-filter { display: flex; align-items: center; gap: 8px; min-height: 38px; }
+.public-saved-filter input { accent-color: #194e36; width: 16px; height: 16px; }
+.public-filters > button { justify-self: start; }
+.public-document-cell { display: flex; align-items: center; gap: 5px; }
+.public-document-cell .document-name { flex: 1; min-width: 0; }
+.public-document-cell > .icon-button { flex-shrink: 0; color: #194e36; }
+.public-input { min-width: 0; width: 100%; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--background)); padding: 8px 10px; font-size: 14px; }
+.public-filters .public-input { height: 38px; }
+.public-input:focus-visible { outline: 2px solid #397352; outline-offset: 2px; }
+.public-document-kind { display: block; font-size: 12px; text-transform: capitalize; color: hsl(var(--muted-foreground)); margin-top: 4px; }
+.public-library-table { font-size: 15px; }
+.public-table-value { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.public-document-dialog { max-width: 760px; }
+.public-document-dialog h2 { line-height: 1.4; }
+.public-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.public-keywords { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.public-keywords li { background: #e4ecd9; padding: 4px 9px; border-radius: 6px; overflow-wrap: anywhere; max-width: 100%; }
+.public-abstract h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.public-abstract p, .public-evidence p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; }
+.public-evidence { display: grid; gap: 12px; }
+.public-evidence article { border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 14px; }
+.public-source { display: flex; align-items: center; gap: 8px; color: #17659a; text-align: left; overflow-wrap: anywhere; font-size: 14px; text-decoration: underline; margin-bottom: 10px; }
+.public-source svg { flex-shrink: 0; }
+.public-file-input { max-width: 100%; font-size: 14px; }
+@media (max-width: 1150px) {
+  .public-filters { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .public-filters > .icon-button { justify-self: end; }
+}
+@media (max-width: 640px) {
+  .library-heading-actions { width: 100%; margin-left: 0; }
+  .library-heading-actions > button { flex: 1; font-size: 14px; }
+  .public-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .public-document-dialog { padding: 20px; }
+  .public-dialog-actions > a { flex: 1; }
+}
+
 /* Added by ChatGPT: aligned secondary surfaces and authentication forms. */
 .dashboard-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
 .dashboard-heading h1 { font-size: 36px; font-weight: 700; }

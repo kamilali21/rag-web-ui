@@ -36,11 +36,11 @@ test("lists real documents, searches filenames, and clears a category filter", a
   expect(screen.getByText("My_Thesis.pdf")).toBeInTheDocument();
 });
 
-test("keeps public access unavailable and uploads to the chosen private collection", async () => {
+test("enables the public toggle and keeps uploads in the chosen private collection", async () => {
   const user = userEvent.setup();
   render(<Library />);
   await screen.findByText("Research_Paper_ML.pdf");
-  expect(screen.getByRole("button", { name: "Public library, not available yet" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Public" })).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Add Documents" }));
   await user.click(screen.getByRole("button", { name: "Theses" }));
   expect(screen.getByText("Upload to collection 8")).toBeInTheDocument();

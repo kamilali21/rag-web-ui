@@ -13,7 +13,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 5 Academic Metadata - Tested And Deployed
+## Current Gate: Phase 6 Public Library - Tested And Deployed
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
@@ -24,6 +24,25 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
 - Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. The user confirmed Phase 3 complete at `0860607`; Phase 4 is checkpointed at `eee6c37`. On 21 September the user explicitly authorized their own admin appointment and Phase 5. Do not begin Phase 6.
+
+### Phase 6 Public Library - 22 September 2026
+
+<!-- Added by ChatGPT: public/private catalog gate, including both explicit scope clarifications. -->
+
+- Completed the original Public/Private toggle with separate, unmounted-on-switch data flows. Public reads the canonical published UAF corpus; Private retains original collections, uploads, filters and owner-only APIs. No private documents are copied into the corpus.
+- Added server-side academic search/filtering, bounded cursor pagination, fresh metadata/open/download dialogs and existing corpus evidence queries with clickable source details. MySQL uses the Phase 1 FULLTEXT index; short tokens and author substrings use bounded scoped filters. No public chat/source-scope, compare or analyze features were added.
+- User explicitly authorized basic admin upload and personal public-document bookmarks. Only effective admins see Add Documents in Public; completion remains a draft. Save/unsave and Saved only use the existing bookmarks table, current session ownership and CSRF enforcement. Unpublished bookmarks remain stored but hidden; final document deletion cascades them.
+- No migration, dependency, Docker configuration, volume or `.env` change. Schema remains `riq_004`; Chroma remains mounted at `/data`. Existing system ownership, auth and private isolation are unchanged.
+- Combined Phase 6/5/4/3/2 and baseline/provider suite: **192 passed on disposable MySQL 8**; **180 passed, 12 MySQL-only skipped on SQLite**. Frontend: **55 tests passed**, TypeScript and production frontend image build passed. Existing tooling/deprecation warnings remain unrelated.
+- Recreated only backend/frontend after confirming zero active ingestion jobs, then reloaded unchanged Nginx. Original `http://127.0.0.1.nip.io` health passed. Preserved pre-change source tag `researchiq-pre-phase6-20260922` (`6ee4063`), frontend image `rag-web-ui-frontend:pre-phase6-20260922`, and ignored restricted SQL backup `.local/backups/pre-phase6-20260922.sql`.
+- Real Chrome acceptance passed for researcher widths 1366/1024/390 and admin 1366: both modes, private filters/details/upload dialog, public metadata filters, persistent save/unsave/Saved only, opening the actual rendered PDF, real corpus evidence and source popups, admin native-file upload and unpublished completion. No JS errors or horizontal overflow. Screenshots were inspected. The first private display fixture omitted its required file hash; only that synthetic fixture was corrected before rerunning the complete checks.
+- Live tests used temporary maintenance sessions and synthetic research, not real inbox/password issuance or a new LLM conversation. Actual parser/MinIO/embedding/Chroma ingestion and retrieval passed. Removed exact synthetic users, sessions, department, private display fixture, public documents/tasks/bookmarks, objects and vectors. All pre-existing non-auth table hashes, object receipts and vector counts matched afterward.
+- Dedicated checkpoint: `researchiq-phase6-tested-20260922`. The two pre-existing citation edits remain outside the commit; nothing pushed and no branches removed. Contracts and limitations are in `docs/phase6-public-library.md`.
+- The user subsequently authorized Phase 7 admin workflow, after this gate. Disposable test infrastructure is retained for that next gate, not attached to production data.
+
+Phase 6 files: corpus API/service; new backend Phase 6 tests; Library wrapper;
+new public-library contracts, component and dialogs; scoped CSS; Library and Public
+Library frontend tests; this progress log and `docs/phase6-public-library.md`.
 
 ### Phase 5 Academic Metadata - 21 September 2026
 
@@ -306,7 +325,7 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 3. SMTP OTP and secure revocable sessions: completed; user confirmed Phase 3 acceptance.
 4. System-owned public corpus: tested/deployed; live service lifecycle and cleanup verified after explicit admin appointment.
 5. Academic metadata: completed; tested and deployed with live API/storage/retrieval acceptance.
-6. Public catalog and bookmarks.
+6. Public catalog and bookmarks: completed, tested and deployed.
 7. Admin ingestion and publication lifecycle.
 8. Private library parity.
 9. Permission-scoped retrieval.
