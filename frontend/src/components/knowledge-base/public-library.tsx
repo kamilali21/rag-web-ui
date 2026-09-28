@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bookmark, BookOpen, ChevronLeft, ChevronRight, File, Globe, Loader2, MessageSquare, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Bookmark, BookOpen, ChevronLeft, ChevronRight, File, Globe, Loader2, MessageSquare, Plus, RefreshCw, Search, Settings2, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { documentSize } from "@/lib/library";
 import { Department, emptyPublicFilters, PUBLIC_PAGE_SIZE, PublicDocument, publicDocumentsUrl } from "@/lib/public-library";
 import { Button } from "@/components/ui/button";
 import { PublicDocumentDetails, PublicQuery, PublicUpload } from "./public-library-dialogs";
+import { CorpusManager } from "./corpus-manager";
 
 // Added by ChatGPT: published server-side catalog; no private KB IDs or private upload components enter this view.
 export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode }) {
@@ -26,6 +27,7 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
   const [bookmarking, setBookmarking] = useState<number | null>(null);
   const [bookmarkError, setBookmarkError] = useState("");
   const [listVersion, setListVersion] = useState(0);
+  const [managing, setManaging] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -76,19 +78,24 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
     setContext(value => value && { ...value, canUpload: false });
     setPermissionNotice("Your public upload permission is no longer available.");
     setUploadOpen(false);
+    setManaging(false);
   }, []);
   const clearFilters = () => { setDraft(emptyPublicFilters); setFilters(emptyPublicFilters); setCursors([null]); };
   const visible = documents.slice(0, PUBLIC_PAGE_SIZE);
   const failure = contextError || error;
   const busy = !context || loading;
 
+  // Added by ChatGPT: management is a separate admin surface; Public remains published-only.
+  if (managing && context?.canUpload) return <CorpusManager onBack={() => { setManaging(false); setRefresh(value => value + 1); }} onForbidden={forbidden} />;
+
   return <section aria-label="Public library">
     <div className="library-heading">
       <div className="library-title"><h1>Library</h1><Globe size={27} strokeWidth={1.8} aria-label="Public library" /></div>
       {scopeControl}
       <div className="library-heading-actions">
-        <button className="primary-action premium-action" onClick={() => setQueryOpen(true)} disabled={!context || !!contextError}><MessageSquare size={18} /> Query corpus</button>
-        {context?.canUpload && <button className="primary-action premium-action" onClick={() => setUploadOpen(true)} disabled={!!contextError}><Plus size={20} /> Add Documents</button>}
+        {context?.canUpload && <button className="icon-button" title="Manage corpus" aria-label="Manage corpus" onClick={() => setManaging(true)}><Settings2 size={21} /></button>}
+        <Button className="primary-action premium-action" onClick={() => setQueryOpen(true)} disabled={!context || !!contextError}><MessageSquare size={18} /> Query corpus</Button>
+        {context?.canUpload && <Button className="primary-action premium-action" onClick={() => setUploadOpen(true)} disabled={!!contextError}><Plus size={20} /> Add Documents</Button>}
       </div>
     </div>
     <h2 className="public-corpus-name">{context?.name || "UAF Research Corpus"}</h2>
@@ -97,18 +104,22 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
         <input type="search" aria-label="Search public library" placeholder="Search titles, authors, abstracts..." maxLength={200} value={draft.search} onChange={event => setDraft({ ...draft, search: event.target.value })} />
       </div>
       <div className="public-filters">
-        <label>Author<input className="public-input" value={draft.author} maxLength={200} onChange={event => setDraft({ ...draft, author: event.target.value })} /></label>
-        <label>Department<select className="public-input" value={draft.department_id} onChange={event => setDraft({ ...draft, department_id: event.target.value })}>
+        <div className="public-filter-fields">
+          <label>Author<input className="public-input" value={draft.author} maxLength={200} onChange={event => setDraft({ ...draft, author: event.target.value })} /></label>
+          <label>Department<select className="public-input" value={draft.department_id} onChange={event => setDraft({ ...draft, department_id: event.target.value })}>
           <option value="">All departments</option>{context?.departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
-        </select></label>
-        <label>From year<input className="public-input" type="number" min={1000} max={9999} value={draft.year_from} onChange={event => setDraft({ ...draft, year_from: event.target.value })} /></label>
-        <label>To year<input className="public-input" type="number" min={draft.year_from || 1000} max={9999} value={draft.year_to} onChange={event => setDraft({ ...draft, year_to: event.target.value })} /></label>
-        <label>Type<select className="public-input" value={draft.document_type} onChange={event => setDraft({ ...draft, document_type: event.target.value })}>
+          </select></label>
+          <label>From year<input className="public-input" type="number" min={1000} max={9999} value={draft.year_from} onChange={event => setDraft({ ...draft, year_from: event.target.value })} /></label>
+          <label>To year<input className="public-input" type="number" min={draft.year_from || 1000} max={9999} value={draft.year_to} onChange={event => setDraft({ ...draft, year_to: event.target.value })} /></label>
+          <label>Type<select className="public-input" value={draft.document_type} onChange={event => setDraft({ ...draft, document_type: event.target.value })}>
           <option value="">All types</option>{["paper", "thesis", "report", "other"].map(type => <option key={type} value={type}>{type[0].toUpperCase() + type.slice(1)}</option>)}
-        </select></label>
-        <label className="public-saved-filter"><input type="checkbox" checked={draft.bookmarked === "true"} onChange={event => setDraft({ ...draft, bookmarked: event.target.checked ? "true" : "" })} /> Saved only</label>
-        <Button type="submit" disabled={!context}><Search size={16} /> Search</Button>
-        <button className="icon-button" type="button" title="Clear public filters" aria-label="Clear public filters" onClick={clearFilters}><X size={18} /></button>
+          </select></label>
+        </div>
+        <div className="public-filter-actions">
+          <label className="public-saved-filter"><input type="checkbox" checked={draft.bookmarked === "true"} onChange={event => setDraft({ ...draft, bookmarked: event.target.checked ? "true" : "" })} /> Saved only</label>
+          <Button type="submit" disabled={!context}><Search size={16} /> Search</Button>
+          <Button variant="outline" type="button" title="Clear public filters" aria-label="Clear public filters" onClick={clearFilters}><X size={16} /> Clear</Button>
+        </div>
       </div>
     </form>
     {permissionNotice && <p role="alert">{permissionNotice}</p>}

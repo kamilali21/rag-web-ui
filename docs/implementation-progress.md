@@ -13,7 +13,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 6 Public Library - Tested And Deployed
+## Current Gate: Phase 7 Admin Workflow - Live Verification In Progress
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
@@ -24,6 +24,20 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Phase 0 completed after the real synthetic PDF upload, processing, retrieval, streamed cited answer, persistence and cleanup passed with the updated OpenRouter key.
 - Backend/frontend regression tests and frontend TypeScript checks passed at the baseline repair checkpoint.
 - Phase 1 is applied and verified; Phase 2 is committed at `9f4aac7`. The user confirmed Phase 3 complete at `0860607`; Phase 4 is checkpointed at `eee6c37`. On 21 September the user explicitly authorized their own admin appointment and Phase 5. Do not begin Phase 6.
+
+### Phase 7 Admin Workflow - 22 September 2026
+
+<!-- Added by ChatGPT: authorized only after Phase 6 completion and its separate checkpoint. -->
+
+- Started from tested Phase 6 commit `c912772`, tag `researchiq-phase6-tested-20260922`. Preserved the two unrelated citation edits. No branch reset, file discard or data-volume change.
+- Added an admin-only paginated processing inbox and terminal archive endpoint; reused existing upload, academic metadata, department, rename, publish/unpublish, retry, content and safe deletion services. No migration or new dependency; schema remains `riq_004`.
+- Management UI separates publication from processing. Includes server filters, cursor pages, refresh/polling, draft upload, metadata entry/edit, department reference maintenance, filename changes, explicit lifecycle confirmations, failed-source retry and permanent deletion. Private mode and the published-only researcher catalog remain unchanged.
+- User delegated archive design. Chosen policy: Unpublish is reversible; Archive permanently hides the document identity, retaining resources until deletion. Existing archived deletion tombstones are never restorable. This uses the current schema and protects partial-cleanup safety; confirmations state the distinction.
+- CRUD dialogs use a shared 760px maximum form width / 500px confirmation width, 18px headings, 14px controls, scrollable bodies and fixed footer actions. Browser inspection prompted stable accessible names for textarea/select controls and a consistent mobile upload-button size.
+- Automated gate: **196 passed on disposable MySQL 8**, **184 passed, 12 MySQL-only skipped on SQLite**, **66 frontend tests passed**, and TypeScript passed. Production image compilation passed; final layout image deployment/live acceptance is in progress. An initial SQLite-only test fixture needed an explicit timestamp instead of MySQL's `now()` default; corrected and the complete gate rerun.
+- Retained verified Phase 6 image `rag-web-ui-frontend:phase6-tested-20260922` and ignored mode-0600 backup `.local/backups/pre-phase7-20260922.sql`. A host/application restart between continuations removed temporary test runners/scripts but preserved the working tree and protected acceptance state; no implementation was restarted. Disposable suites were recreated independently of production.
+- New real uploads appeared after the first Phase 7 fixture snapshot. They are preserved. A fresh read-only receipt excluding exact synthetic IDs/paths was captured before live mutation testing, so cleanup verification will not mistake legitimate new user data for test leftovers.
+- Final live acceptance, exact fixture cleanup and Phase 7 checkpoint are pending. Phase 8 has not started. Contracts, archive rationale and operational limitations are in `docs/phase7-admin-workflow.md`.
 
 ### Phase 6 Public Library - 22 September 2026
 

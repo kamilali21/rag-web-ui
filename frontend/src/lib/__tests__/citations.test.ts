@@ -21,7 +21,7 @@ describe("citation decoding", () => {
 });
 
 describe("citation Markdown transform", () => {
-  it.each(["[citation:1]", "[citation: 1]", "[[citation:1]]", "[1]"])("links known marker %s", (value) => {
+  it.each(["[citation:1]", "[citation: 1]", "[[citation:1]]", "[1]", "【1】", "【citation:1】"]) ("links known marker %s", (value) => {
     const tree = { type: "root", children: [{ type: "text", value }] };
     remarkCitations({ citationIds: [1] })(tree);
     expect(tree.children).toEqual([{ type: "link", url: "#citation-1", children: [{ type: "text", value: "[1]" }] }]);

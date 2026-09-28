@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 const message = (error: unknown) => error instanceof ApiError ? error.message : "Request failed. Please try again.";
 
 // Added by ChatGPT: detail reads recheck publication rather than trusting an older catalog row.
-export function PublicDocumentDetails({ id, onClose }: { id: number | null; onClose: () => void }) {
+export function PublicDocumentDetails({ id, onClose, manage = false }: { id: number | null; onClose: () => void; manage?: boolean }) {
   const [details, setDetails] = useState<{ document: PublicDocument; metadata: PublicMetadata; department: Department | null } | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -22,15 +22,15 @@ export function PublicDocumentDetails({ id, onClose }: { id: number | null; onCl
     void (async () => {
       try {
         const [document, metadata]: [PublicDocument, PublicMetadata] = await Promise.all([
-          api.get(`/api/corpus/documents/${id}`, { signal: controller.signal, cache: "no-store" }),
-          api.get(`/api/corpus/documents/${id}/metadata`, { signal: controller.signal, cache: "no-store" }),
+          api.get(`/api/corpus/documents/${id}${manage ? "?include_unpublished=true" : ""}`, { signal: controller.signal, cache: "no-store" }),
+          api.get(`/api/corpus/documents/${id}/metadata${manage ? "?include_unpublished=true" : ""}`, { signal: controller.signal, cache: "no-store" }),
         ]);
         const department = metadata.department_id ? await api.get(`/api/departments/${metadata.department_id}`, { signal: controller.signal }) : null;
         if (!controller.signal.aborted) setDetails({ document, metadata, department });
       } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof ApiError && failure.status === 404 ? "This document is no longer available in the public corpus." : message(failure)); }
     })();
     return () => controller.abort();
-  }, [id, retry]);
+  }, [id, retry, manage]);
   const metadata = details?.metadata;
   return <Dialog open={id !== null} onOpenChange={open => { if (!open) onClose(); }}>
     <DialogContent className="public-document-dialog">
@@ -51,8 +51,8 @@ export function PublicDocumentDetails({ id, onClose }: { id: number | null; onCl
           {metadata.abstract && <section className="public-abstract"><h3>Abstract</h3><p>{metadata.abstract}</p></section>}
           <div className="public-dialog-actions">
             {/* Cookie-authenticated links retain server authorization and never expose MinIO paths. */}
-            <Button asChild><a href={`/api/corpus/documents/${id}/content?inline=true`} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} /> Open document</a></Button>
-            <Button variant="outline" asChild><a href={`/api/corpus/documents/${id}/content`}><Download size={16} /> Download</a></Button>
+            <Button asChild><a href={`/api/corpus/documents/${id}/content?inline=true${manage ? "&include_unpublished=true" : ""}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} /> Open document</a></Button>
+            <Button variant="outline" asChild><a href={`/api/corpus/documents/${id}/content${manage ? "?include_unpublished=true" : ""}`}><Download size={16} /> Download</a></Button>
           </div>
         </>}
     </DialogContent>

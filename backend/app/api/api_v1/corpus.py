@@ -1,4 +1,4 @@
-"""Added by ChatGPT: minimal public corpus API, without catalog/academic/analysis UI contracts."""
+"""Added by ChatGPT: authorized corpus discovery, academic metadata and document lifecycle APIs."""
 from typing import Annotated, Literal
 from urllib.parse import quote
 
@@ -141,6 +141,16 @@ def task_status(task_id: int, db: Database, actor: Actor):
     return _task(task)
 
 
+# Added by ChatGPT: only current corpus admins may enumerate processing and unpublished work.
+@router.get("/tasks")
+def tasks(db: Database, actor: Actor, before_id: int | None = Query(None, ge=1),
+          limit: int = Query(50, ge=1, le=100), search: str = Query("", max_length=200),
+          status: Literal["pending", "processing", "completed", "failed"] | None = None,
+          publication_status: Literal["draft", "published", "archived"] | None = None):
+    return corpus.list_uploads(db, actor, before_id=before_id, limit=limit, search=search,
+                              status=status, publication_status=publication_status)
+
+
 @router.post("/tasks/{task_id}/retry", status_code=202)
 def retry(task_id: int, db: Database, actor: Actor, background_tasks: BackgroundTasks):
     task = corpus.retry_upload(db, actor, task_id)
@@ -173,3 +183,8 @@ def unpublish(document_id: int, db: Database, actor: Actor):
 def delete(document_id: int, db: Database, actor: Actor):
     corpus.delete_document(db, actor, document_id)
     return {"message": "Document and stored resources deleted"}
+
+
+@router.post("/documents/{document_id}/archive")
+def archive(document_id: int, db: Database, actor: Actor):
+    return corpus.document_summary(corpus.archive_document(db, actor, document_id))

@@ -10,7 +10,7 @@ from uuid import uuid4
 from zipfile import BadZipFile, ZipFile
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.mysql import match as mysql_match
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -196,6 +196,49 @@ def set_bookmark(db: Session, actor: User, document_id: int, saved: bool):
     db.commit()
 
 
+# Added by ChatGPT: an admin-only, bounded inbox includes failed uploads without a document yet.
+def list_uploads(db: Session, actor: User, *, before_id=None, limit=50, search="", status=None, publication_status=None):
+    corpus = get_corpus(db, actor, manage=True)
+    query = db.query(ProcessingTask, DocumentUpload, Document, AcademicDocumentMetadata).outerjoin(
+        DocumentUpload, DocumentUpload.id == ProcessingTask.document_upload_id).outerjoin(
+        Document, Document.id == ProcessingTask.document_id).outerjoin(
+        AcademicDocumentMetadata, AcademicDocumentMetadata.document_id == Document.id).filter(
+        ProcessingTask.knowledge_base_id == corpus.id,
+        or_(Document.id.is_(None), Document.knowledge_base_id == corpus.id),
+        or_(DocumentUpload.id.is_(None), DocumentUpload.knowledge_base_id == corpus.id))
+    if before_id is not None:
+        query = query.filter(ProcessingTask.id < before_id)
+    if status:
+        query = query.filter(ProcessingTask.status == status)
+    if publication_status:
+        query = query.filter(func.coalesce(AcademicDocumentMetadata.publication_status, "draft") == publication_status)
+    if search.strip():
+        query = query.filter(or_(*(column.icontains(search.strip(), autoescape=True) for column in
+            (Document.file_name, DocumentUpload.file_name, AcademicDocumentMetadata.title))))
+    return [{"id": task.id, "document_id": task.document_id, "upload_id": task.document_upload_id,
+        "file_name": document.file_name if document else upload.file_name if upload else "Unavailable source",
+        "title": metadata.title if metadata else None, "status": task.status,
+        "publication_status": metadata.publication_status if metadata else "draft",
+        "created_at": task.created_at,
+        "error_message": "Processing failed; retry the retained source." if task.status == "failed" else None}
+        for task, upload, document, metadata in query.order_by(ProcessingTask.id.desc()).limit(min(max(limit, 1), 100)).all()]
+
+
+def archive_document(db: Session, actor: User, document_id: int):
+    """Added by ChatGPT: terminal hiding; use unpublish for reversible withdrawal."""
+    _lock_corpus(db, actor)
+    document = get_document(db, actor, document_id, manage=True)
+    tasks = db.query(ProcessingTask).filter_by(document_id=document.id).populate_existing().with_for_update().all()
+    if any(task.status in {"pending", "processing"} for task in tasks):
+        raise HTTPException(409, "Document is still processing")
+    if document.academic_metadata is None:
+        document.academic_metadata = AcademicDocumentMetadata(title=document.file_name)
+    document.academic_metadata.publication_status = "archived"
+    document.academic_metadata.published_at = None
+    db.commit()
+    return document
+
+
 def _filename(name: str) -> str:
     if (not name or len(name) > 150 or len(name.encode("utf-8")) > 180 or name in {".", ".."} or "/" in name or "\\" in name
             or any(ord(c) < 32 or ord(c) == 127 for c in name)
@@ -321,7 +364,7 @@ def set_publication(db: Session, actor: User, document_id: int, published: bool)
     document = get_document(db, actor, document_id, manage=True)
     metadata = document.academic_metadata
     if metadata and metadata.publication_status == "archived":
-        raise HTTPException(409, "Deletion is in progress; retry deletion")
+        raise HTTPException(409, "Archived documents cannot be republished; deletion may be retried")
     tasks = db.query(ProcessingTask).filter_by(document_id=document.id).populate_existing().with_for_update().all()
     if published and (not tasks or any(t.status != "completed" for t in tasks) or not document.chunks):
         raise HTTPException(409, "Document must finish processing before publication")

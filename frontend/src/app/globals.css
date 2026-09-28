@@ -84,9 +84,9 @@
 .app-breadcrumb a:hover { color: #194e36; text-decoration: underline; }
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 100; padding: 12px; background: #c5fc3c; color: #101b0b; }
 .skip-link:focus { top: 12px; }
-.icon-button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; }
+.icon-button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; }
 .icon-button:hover { background: hsl(var(--muted)); }
-.primary-action { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; padding: 8px 18px; border-radius: 999px; background: #194e36; color: #faf9f5; font-size: 18px; line-height: 24px; }
+.primary-action { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; padding: 8px 18px; border-radius: 8px; background: #194e36; color: #faf9f5; font-size: 18px; line-height: 24px; }
 .primary-action:hover { background: #246746; }
 .primary-action:disabled { opacity: .55; }
 
@@ -95,11 +95,11 @@
 .library-title { display: flex; align-items: center; gap: 16px; }
 .library-title h1 { font-size: 36px; line-height: 42px; font-weight: 700; }
 .library-heading > .primary-action { margin-left: auto; }
-.library-scope { display: inline-flex; border: 1px solid hsl(var(--border)); padding: 3px; border-radius: 28px; height: 43px; }
-.library-scope button { width: 100px; border-radius: 24px; font-size: 18px; }
+.library-scope { display: inline-flex; border: 1px solid hsl(var(--border)); padding: 3px; border-radius: 8px; height: 43px; }
+.library-scope button { width: 100px; border-radius: 6px; font-size: 18px; }
 .library-scope button[aria-pressed="true"] { background: #194e36; color: white; }
 .library-scope button:disabled { color: #55574b; }
-.library-search { display: flex; align-items: center; gap: 12px; padding: 0 16px; background: #ece6d8; border-radius: 28px; min-height: 44px; }
+.library-search { display: flex; align-items: center; gap: 12px; width: min(100%, 760px); padding: 0 16px; background: #ece6d8; border-radius: 8px; min-height: 44px; }
 .library-search:focus-within { outline: 2px solid #397352; outline-offset: 2px; }
 .library-search input { width: 100%; min-width: 0; height: 44px; background: transparent; outline: none; border: 0; font-size: 18px; }
 .library-search input::placeholder { color: #28271f; opacity: 1; }
@@ -112,8 +112,8 @@
 .library-table th { text-align: left; font-weight: 400; height: 31px; padding: 0 8px 8px; }
 .library-table th:first-child { padding-left: 0; }
 .library-table td { background: #fff; border-top: 1px solid #d5d3c9; border-bottom: 1px solid #d5d3c9; height: 54px; padding: 8px; vertical-align: middle; overflow-wrap: anywhere; }
-.library-table td:first-child { border-left: 1px solid #d5d3c9; border-radius: 20px 0 0 20px; padding-left: 14px; }
-.library-table td:last-child { border-right: 1px solid #d5d3c9; border-radius: 0 20px 20px 0; padding-right: 14px; }
+.library-table td:first-child { border-left: 1px solid #d5d3c9; border-radius: 8px 0 0 8px; padding-left: 14px; }
+.library-table td:last-child { border-right: 1px solid #d5d3c9; border-radius: 0 8px 8px 0; padding-right: 14px; }
 .library-table tbody tr:hover td { background: #fcfdf7; }
 .document-name { display: flex; align-items: center; gap: 12px; min-width: 0; width: 100%; text-align: left; }
 .document-name:hover .document-label { text-decoration: underline; text-underline-offset: 3px; }
@@ -121,7 +121,7 @@
 .document-icon { position: relative; display: block; width: 24px; height: 30px; flex: 0 0 24px; }
 .document-icon svg { width: 24px; height: 30px; }
 .document-icon span { position: absolute; top: 14px; left: 3px; width: 18px; text-align: center; font-size: 6px; line-height: 8px; font-weight: 700; text-transform: uppercase; }
-.document-status { display: inline-flex; align-items: center; justify-content: center; min-width: 98px; max-width: 100%; border-radius: 22px; padding: 5px 16px; font-size: 16px; line-height: 22px; background: #eae8e1; }
+.document-status { display: inline-flex; align-items: center; justify-content: center; min-width: 98px; max-width: 100%; border-radius: 6px; padding: 5px 16px; font-size: 16px; line-height: 22px; background: #eae8e1; }
 .document-status[data-status="completed"] { background: #b8d0a9; color: #182c15; }
 .document-status[data-status="processing"] { background: #bfd8ec; color: #142e42; }
 .document-status[data-status="pending"] { background: #f7d982; color: #49330a; }
@@ -141,11 +141,12 @@
 /* Added by ChatGPT: Public Library uses the existing shell with bounded metadata/filter surfaces. */
 .library-heading-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 10px; }
 .public-corpus-name { font-size: 18px; line-height: 26px; font-weight: 600; margin: 0 0 16px; }
-.public-filters { display: grid; grid-template-columns: minmax(130px,1fr) minmax(160px,1.3fr) repeat(2,minmax(85px,.6fr)) minmax(105px,.8fr); align-items: end; gap: 10px; margin: 16px 0; }
+.public-filters { display: grid; gap: 12px; margin: 16px 0; }
+.public-filter-fields { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .public-filters label { display: grid; gap: 5px; min-width: 0; font-size: 13px; }
-.public-filters .public-saved-filter { display: flex; align-items: center; gap: 8px; min-height: 38px; }
+.public-filter-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.public-filters .public-saved-filter { display: flex; align-items: center; gap: 8px; min-height: 40px; margin-right: 8px; }
 .public-saved-filter input { accent-color: #194e36; width: 16px; height: 16px; }
-.public-filters > button { justify-self: start; }
 .public-document-cell { display: flex; align-items: center; gap: 5px; }
 .public-document-cell .document-name { flex: 1; min-width: 0; }
 .public-document-cell > .icon-button { flex-shrink: 0; color: #194e36; }
@@ -159,24 +160,72 @@
 .public-document-dialog h2 { line-height: 1.4; }
 .public-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .public-keywords { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
-.public-keywords li { background: #e4ecd9; padding: 4px 9px; border-radius: 6px; overflow-wrap: anywhere; max-width: 100%; }
+.public-keywords li { background: #e4ecd9; padding: 4px 9px; border-radius: 4px; overflow-wrap: anywhere; max-width: 100%; }
 .public-abstract h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
 .public-abstract p, .public-evidence p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; }
 .public-evidence { display: grid; gap: 12px; }
-.public-evidence article { border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 14px; }
+.public-evidence article { border: 1px solid hsl(var(--border)); border-radius: 6px; padding: 14px; }
 .public-source { display: flex; align-items: center; gap: 8px; color: #17659a; text-align: left; overflow-wrap: anywhere; font-size: 14px; text-decoration: underline; margin-bottom: 10px; }
 .public-source svg { flex-shrink: 0; }
 .public-file-input { max-width: 100%; font-size: 14px; }
 @media (max-width: 1150px) {
-  .public-filters { grid-template-columns: repeat(3,minmax(0,1fr)); }
-  .public-filters > .icon-button { justify-self: end; }
+  .public-filter-fields { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
 @media (max-width: 640px) {
   .library-heading-actions { width: 100%; margin-left: 0; }
   .library-heading-actions > button { flex: 1; font-size: 14px; }
-  .public-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .public-filter-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .public-filter-actions { justify-content: stretch; }
+  .public-filter-actions > button { flex: 1; }
+  .public-filters .public-saved-filter { width: 100%; margin-right: 0; }
   .public-document-dialog { padding: 20px; }
   .public-dialog-actions > a { flex: 1; }
+}
+
+/* Added by ChatGPT: restrained admin tables and consistently sized, scroll-contained CRUD dialogs. */
+.corpus-manager-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
+.corpus-manager-heading h1 { font-size: 28px; font-weight: 700; margin: 10px 0 4px; }
+.corpus-manager-heading p { color: hsl(var(--muted-foreground)); font-size: 14px; }
+.corpus-back { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #194e36; }
+.corpus-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.corpus-toolbar .primary-action { font-size: 14px; padding: 10px 16px; white-space: nowrap; }
+.corpus-filters { display: grid; grid-template-columns: minmax(180px,2fr) repeat(2,minmax(120px,1fr)) auto auto; align-items: end; gap: 10px; margin-bottom: 24px; }
+.corpus-filters label, .corpus-field, .corpus-form label { display: grid; gap: 7px; min-width: 0; font-size: 14px; font-weight: 500; }
+.corpus-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
+.corpus-table th { text-align: left; font-weight: 500; padding: 12px; color: hsl(var(--muted-foreground)); }
+.corpus-table td { padding: 16px 12px; border-top: 1px solid hsl(var(--border)); vertical-align: middle; overflow-wrap: anywhere; }
+.corpus-table th:first-child { width: 47%; }.corpus-table th:last-child { width: 48px; }
+.corpus-table td:first-child > * { display: block; }.corpus-table strong { font-weight: 500; }
+.corpus-table small { display: block; color: hsl(var(--muted-foreground)); font-size: 12px; margin-top: 5px; }
+.corpus-table td:first-child > span { color: hsl(var(--muted-foreground)); margin-top: 4px; }
+.corpus-status { display: inline-block; border-radius: 5px; padding: 4px 8px; font-size: 12px; text-transform: capitalize; background: #e7e6e0; }
+.corpus-status-published, .corpus-status-completed { background: #dcead9; color: #245137; }
+.corpus-status-failed { background: #f9dfdb; color: #8f3026; }.corpus-status-processing { background: #dfeaf6; color: #245478; }
+.corpus-status-pending { background: #fff0c6; color: #72550c; }.corpus-status-archived { background: #e4e1e7; color: #544d5e; }
+.corpus-menu { z-index: 60; min-width: 205px; max-width: calc(100vw - 24px); background: hsl(var(--background)); border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px #0002; }
+.corpus-menu [role=menuitem] { display: flex; align-items: center; gap: 10px; padding: 10px; outline: none; cursor: pointer; font-size: 14px; border-radius: 4px; }
+.corpus-menu [data-highlighted] { background: #e2eadb; }.corpus-menu [role=separator] { height: 1px; background: hsl(var(--border)); margin: 5px; }.corpus-danger { color: #a03329; }
+.corpus-dialog { width: min(760px,calc(100vw - 32px)); max-width: 760px; max-height: min(820px,calc(100dvh - 32px)); display: flex; flex-direction: column; overflow: hidden; gap: 0; padding: 0; }
+.corpus-dialog-compact { max-width: 500px; }
+.corpus-dialog > div:first-child { flex-shrink: 0; padding: 24px 48px 20px 24px; text-align: left; border-bottom: 1px solid hsl(var(--border)); }
+.corpus-dialog h2 { font-size: 18px; line-height: 1.4; letter-spacing: 0; }
+.corpus-dialog p { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.corpus-dialog-body { padding: 22px 24px; overflow-y: auto; min-height: 0; }
+.corpus-dialog-footer { flex-shrink: 0; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px 24px; border-top: 1px solid hsl(var(--border)); }
+.corpus-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 16px; }
+.corpus-form-wide { grid-column: 1 / -1; }.corpus-form .public-input { font-weight: 400; min-height: 40px; }
+.corpus-form textarea { resize: vertical; }.corpus-error { color: #a03329; margin-bottom: 16px; }
+.corpus-form .corpus-checkbox { display: flex; align-items: center; gap: 8px; }.corpus-checkbox input { width: 16px; height: 16px; accent-color: #194e36; }
+.corpus-form-heading { display: flex; justify-content: space-between; align-items: center; margin: 20px 0 14px; }.corpus-form-heading h3 { font-size: 15px; font-weight: 600; }
+.corpus-departments { max-height: 220px; overflow-y: auto; }.corpus-department-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid hsl(var(--border)); font-size: 14px; }
+.corpus-department-row span { min-width: 0; overflow-wrap: anywhere; }.corpus-department-row small { display: block; color: hsl(var(--muted-foreground)); }.corpus-loading { padding: 40px 0; }
+@media (max-width: 767px) {
+  .corpus-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }.corpus-filters label:first-child { grid-column: 1 / -1; }
+  .corpus-filters > button { justify-self: start; }.corpus-filters > .icon-button { justify-self: end; }
+  .corpus-table thead { display: none; }.corpus-table tr { display: grid; grid-template-columns: 1fr 1fr 40px; border-top: 1px solid hsl(var(--border)); padding: 12px 0; }
+  .corpus-table td { border: 0; padding: 6px; }.corpus-table td:first-child { grid-column: 1 / -1; }
+  .corpus-dialog > div:first-child { padding: 20px 44px 16px 20px; }.corpus-dialog-body { padding: 18px 20px; }.corpus-dialog-footer { padding: 14px 20px; }
+  .corpus-form { grid-template-columns: minmax(0,1fr); gap: 16px; }.corpus-toolbar { width: 100%; }.corpus-toolbar > * { flex: 1; }
 }
 
 /* Added by ChatGPT: aligned secondary surfaces and authentication forms. */
@@ -229,7 +278,7 @@
   .library-table, .library-table tbody { display: block; }
   .library-table colgroup, .library-table thead { display: none; }
   .library-table tbody { display: grid; gap: 10px; }
-  .library-table tr { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; border: 1px solid #d5d3c9; border-radius: 18px; background: white; padding: 13px; }
+  .library-table tr { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; border: 1px solid #d5d3c9; border-radius: 8px; background: white; padding: 13px; }
   .library-table td, .library-table td:first-child, .library-table td:last-child { display: block; padding: 0; border: 0; height: auto; border-radius: 0; background: transparent; }
   .library-table td:first-child { grid-column: 1/-1; }
   .library-table td:nth-child(2) { font-size: 14px; color: #56584d; }

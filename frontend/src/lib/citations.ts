@@ -34,8 +34,8 @@ export function remarkCitations({ citationIds }: { citationIds: number[] }) {
         if (node.type !== "text" || !node.value) { visit(node); return [node]; }
         const pieces: MarkdownNode[] = [];
         let offset = 0;
-        for (const match of node.value.matchAll(/\[?\[\s*(?:citation\s*:\s*)?(\d+)\s*\]\]?/gi)) {
-          const id = Number(match[1]);
+        for (const match of node.value.matchAll(/(?:\[?\[\s*(?:citation\s*:\s*)?(\d+)\s*\]\]?|【\s*(?:citation\s*:\s*)?(\d+)\s*】)/gi)) {
+          const id = Number(match[1] ?? match[2]);
           if (!allowed.has(id)) continue;
           const index = match.index!;
           if (index > offset) pieces.push({ type: "text", value: node.value.slice(offset, index) });
