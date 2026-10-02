@@ -9,21 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { DocumentUploadSteps } from "./document-upload-steps";
 import { LibraryTable } from "./library-table";
-import { PublicLibrary } from "./public-library";
 
 // Added by ChatGPT: a document-first view over the existing owner-scoped knowledge-base APIs.
 export function Library({ knowledgeBaseId }: { knowledgeBaseId?: number }) {
-  // Added by ChatGPT: switching scope unmounts private modals/polling instead of sharing document state.
-  const [scope, setScope] = useState<"public" | "private">("private");
-  const scopeControl = <div className="library-scope" role="group" aria-label="Library access">
-    <button aria-pressed={scope === "public"} onClick={() => setScope("public")}>Public</button>
-    <button aria-pressed={scope === "private"} onClick={() => setScope("private")}>Private</button>
-  </div>;
-  return scope === "public" ? <PublicLibrary scopeControl={scopeControl} /> :
-    <PrivateLibrary knowledgeBaseId={knowledgeBaseId} scopeControl={scopeControl} />;
-}
-
-function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: number; scopeControl: React.ReactNode }) {
   const [collections, setCollections] = useState<LibraryCollection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -119,10 +107,13 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
 
   return (
     <section aria-label="Private library">
-      {/* Added by ChatGPT: the original private workflows stay separate from public corpus management. */}
+      {/* Added by ChatGPT: Public is unavailable until the shared-corpus API exists. */}
       <div className="library-heading">
         <div className="library-title"><h1>Library</h1><LockKeyhole size={27} strokeWidth={1.8} aria-label="Private library" /></div>
-        {scopeControl}
+        <div className="library-scope" role="group" aria-label="Library access">
+          <button disabled title="Public library is not available yet" aria-label="Public library, not available yet">Public</button>
+          <button aria-pressed="true">Private</button>
+        </div>
         {/* Added by ChatGPT: shared animated border preserves the existing upload handler. */}
         <button className="primary-action premium-action" onClick={openUpload} disabled={loading || !!error}>
           <Plus size={21} strokeWidth={1.6} aria-hidden="true" /> Add Documents

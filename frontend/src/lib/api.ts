@@ -1,38 +1,26 @@
 interface FetchOptions extends Omit<RequestInit, 'body' | 'headers'> {
   data?: any;
   headers?: Record<string, string>;
-  redirectOnUnauthorized?: boolean;
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public retryAfter = 0) {
+  constructor(public status: number, message: string) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
-// Added by ChatGPT: only the CSRF cookie is readable; the session secret stays HttpOnly.
-export function getAuthHeaders(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  const cookieName = window.location.protocol === 'https:' ? '__Host-researchiq_csrf' : 'researchiq_local_csrf';
-  const csrf = document.cookie.split('; ').find(value => value.startsWith(`${cookieName}=`))?.split('=')[1];
-  if (csrf) return { 'X-CSRF-Token': decodeURIComponent(csrf) };
-  const token = localStorage.getItem('token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-// Added by ChatGPT: streaming chat needs the same current credentials as JSON requests.
-export const authenticatedFetch: typeof fetch = (input, init) => {
-  const headers = new Headers(init?.headers);
-  Object.entries(getAuthHeaders()).forEach(([key, value]) => headers.set(key, value));
-  return fetch(input, { ...init, credentials: 'same-origin', headers });
-};
-
 export async function fetchApi(fullUrl: string, options: FetchOptions = {}) {
-  const { data, headers: customHeaders = {}, redirectOnUnauthorized = true, ...restOptions } = options;
+  const { data, headers: customHeaders = {}, ...restOptions } = options;
+
+  // Get token from localStorage
+  let token = '';
+  if (typeof window !== 'undefined') {
+    token = localStorage.getItem('token') || '';
+  }
 
   const headers: Record<string, string> = {
-    ...getAuthHeaders(),
+    ...(token && { Authorization: `Bearer ${token}` }),
     ...customHeaders,
   };
 
@@ -43,7 +31,6 @@ export async function fetchApi(fullUrl: string, options: FetchOptions = {}) {
 
   const config: RequestInit = {
     ...restOptions,
-    credentials: 'same-origin',
     headers,
   };
 
@@ -64,7 +51,7 @@ export async function fetchApi(fullUrl: string, options: FetchOptions = {}) {
     const response = await fetch(fullUrl, config);
 
     if (response.status === 401) {
-      if (redirectOnUnauthorized && typeof window !== 'undefined') {
+      if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
         window.location.href = '/login';
       }
@@ -75,13 +62,11 @@ export async function fetchApi(fullUrl: string, options: FetchOptions = {}) {
       const errorData = await response.json().catch(() => ({}));
       throw new ApiError(
         response.status,
-        typeof (errorData.message || errorData.detail) === 'string'
-          ? errorData.message || errorData.detail : 'Please check your input and try again',
-        Number(response.headers.get('Retry-After')) || 0
+        errorData.message || errorData.detail || 'An error occurred'
       );
     }
 
-    return response.status === 204 ? undefined : await response.json();
+    return await response.json();
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;

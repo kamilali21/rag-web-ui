@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import { useChat } from "ai/react";
 import { Send, User, Bot } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { api, ApiError, authenticatedFetch } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Answer } from "@/components/chat/answer";
-import { decodeChatAnswer } from "@/lib/citations";
 
 interface Message {
   id: string;
@@ -59,8 +58,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     setMessages,
   } = useChat({
     api: `/api/chat/${params.id}/messages`,
-    // Added by ChatGPT: current credentials without changing the citation stream.
-    fetch: authenticatedFetch,
+    headers: {
+      Authorization: `Bearer ${
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("token")
+          : ""
+      }`,
+    },
   });
 
   useEffect(() => {
@@ -79,10 +83,57 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const fetchChat = async () => {
     try {
       const data: Chat = await api.get(`/api/chat/${params.id}`);
-      // Added by ChatGPT: saved and live messages use the same decoding path below.
-      const formattedMessages = data.messages.map((msg) => ({
-        id: msg.id.toString(), role: msg.role, content: msg.content,
-      }));
+      const formattedMessages = data.messages.map((msg) => {
+        if (msg.role !== "assistant" || !msg.content)
+          return {
+            id: msg.id.toString(),
+            role: msg.role,
+            content: msg.content,
+          };
+
+        try {
+          if (!msg.content.includes("__LLM_RESPONSE__")) {
+            return {
+              id: msg.id.toString(),
+              role: msg.role,
+              content: msg.content,
+            };
+          }
+
+          const [base64Part, responseText] =
+            msg.content.split("__LLM_RESPONSE__");
+
+          const contextData = base64Part
+            ? (JSON.parse(atob(base64Part.trim())) as {
+                context: Array<{
+                  page_content: string;
+                  metadata: Record<string, any>;
+                }>;
+              })
+            : null;
+
+          const citations: Citation[] =
+            contextData?.context.map((citation, index) => ({
+              id: index + 1,
+              text: citation.page_content,
+              metadata: citation.metadata,
+            })) || [];
+
+          return {
+            id: msg.id.toString(),
+            role: msg.role,
+            content: responseText || "",
+            citations,
+          };
+        } catch (e) {
+          console.error("Failed to process message:", e);
+          return {
+            id: msg.id.toString(),
+            role: msg.role,
+            content: msg.content,
+          };
+        }
+      });
       setMessages(formattedMessages);
     } catch (error) {
       console.error("Failed to fetch chat:", error);
@@ -101,10 +152,92 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const processMessageContent = (message: Message): Message => {
+    if (message.role !== "assistant" || !message.content) return message;
+
+    try {
+      if (!message.content.includes("__LLM_RESPONSE__")) {
+        return message;
+      }
+
+      const [base64Part, responseText] =
+        message.content.split("__LLM_RESPONSE__");
+
+      const contextData = base64Part
+        ? (JSON.parse(atob(base64Part.trim())) as {
+            context: Array<{
+              page_content: string;
+              metadata: Record<string, any>;
+            }>;
+          })
+        : null;
+
+      const citations: Citation[] =
+        contextData?.context.map((citation, index) => ({
+          id: index + 1,
+          text: citation.page_content,
+          metadata: citation.metadata,
+        })) || [];
+
+      return {
+        ...message,
+        content: responseText || "",
+        citations,
+      };
+    } catch (e) {
+      console.error("Failed to process message:", e);
+      return message;
+    }
+  };
+
+  const markdownParse = (text: string) => {
+    return text
+      .replace(/\[\[([cC])itation/g, "[citation")
+      .replace(/[cC]itation:(\d+)]]/g, "citation:$1]")
+      .replace(/\[\[([cC]itation:\d+)]](?!])/g, `[$1]`)
+      .replace(/\[[cC]itation:(\d+)]/g, "[citation]($1)");
+  };
+
   const processedMessages = useMemo(() => {
     return messages.map((message) => {
       if (message.role !== "assistant" || !message.content) return message;
-      return { ...message, ...decodeChatAnswer(message.content) };
+
+      try {
+        if (!message.content.includes("__LLM_RESPONSE__")) {
+          return {
+            ...message,
+            content: markdownParse(message.content),
+          };
+        }
+
+        const [base64Part, responseText] =
+          message.content.split("__LLM_RESPONSE__");
+
+        const contextData = base64Part
+          ? (JSON.parse(atob(base64Part.trim())) as {
+              context: Array<{
+                page_content: string;
+                metadata: Record<string, any>;
+              }>;
+            })
+          : null;
+
+        const citations: Citation[] =
+          contextData?.context.map((citation, index) => ({
+            id: index + 1,
+            text: citation.page_content,
+            metadata: citation.metadata,
+          })) || [];
+
+        return {
+          ...message,
+          content: markdownParse(responseText || ""),
+          citations,
+        };
+      } catch (e) {
+        console.error("Failed to process message:", e);
+        return message;
+      }
     });
   }, [messages]);
 

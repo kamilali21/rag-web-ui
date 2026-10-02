@@ -11,8 +11,6 @@ const createJestConfig = nextJest({
 const config: Config = {
   coverageProvider: 'v8',
   testEnvironment: 'jsdom',
-  // Added by ChatGPT: bounded interaction timeout accommodates shared Docker/CI host load.
-  testTimeout: 15000,
   // Added by ChatGPT: generated standalone builds are not additional application/test modules.
   modulePathIgnorePatterns: ['<rootDir>/.next-check/', '<rootDir>/.next-preview/'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
