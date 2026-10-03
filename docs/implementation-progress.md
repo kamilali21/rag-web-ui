@@ -17,6 +17,17 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 ### Bounded frontend polish - 3 October 2026
 
+- Follow-up from the user's screenshot: replaced the oversized three-column
+  filter grid with a compact wrapping desktop row, grouped From/To under Year
+  range, and aligned Search/Clear with the controls. Narrow screens retain a
+  two-column layout. Restored the original `primary-action premium-action`
+  animated glow on both Public Query corpus and Add Documents as requested.
+  All filter behavior remains unchanged. Fifteen Public Library tests,
+  TypeScript and production build passed. Deployed only frontend image
+  `researchiq-frontend:filters-20261003` (`4d092bf4a199`); live Nginx served the
+  new styles and frontend was healthy. Other containers stayed running.
+  This supersedes the earlier public-button hierarchy/three-column layout below.
+
 - Applied the user's separate frontend-only audit before substantial Phase 8:
   reused existing buttons, clarified public action hierarchy, aligned filters,
   associated bookmarks with titles, top-aligned public rows, muted missing

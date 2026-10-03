@@ -94,8 +94,8 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
       {scopeControl}
       <div className="library-heading-actions">
         {context?.canUpload && <button className="icon-button" title="Manage corpus" aria-label="Manage corpus" onClick={() => setManaging(true)}><Settings2 size={21} /></button>}
-        <Button onClick={() => setQueryOpen(true)} disabled={!context || !!contextError}><MessageSquare size={18} /> Query corpus</Button>
-        {context?.canUpload && <Button variant="outline" onClick={() => setUploadOpen(true)} disabled={!!contextError}><Plus size={20} /> Add Documents</Button>}
+        <Button className="primary-action premium-action" onClick={() => setQueryOpen(true)} disabled={!context || !!contextError}><MessageSquare size={18} /> Query corpus</Button>
+        {context?.canUpload && <Button className="primary-action premium-action" onClick={() => setUploadOpen(true)} disabled={!!contextError}><Plus size={20} /> Add Documents</Button>}
       </div>
     </div>
     <h2 className="public-corpus-name">{context?.name || "UAF Research Corpus"}</h2>
@@ -109,8 +109,11 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
           <label>Department<select className="public-input" value={draft.department_id} onChange={event => setDraft({ ...draft, department_id: event.target.value })}>
           <option value="">All departments</option>{context?.departments.map(department => <option key={department.id} value={department.id}>{department.name}</option>)}
           </select></label>
-          <label>From year<input className="public-input" type="number" min={1000} max={9999} value={draft.year_from} onChange={event => setDraft({ ...draft, year_from: event.target.value })} /></label>
-          <label>To year<input className="public-input" type="number" min={draft.year_from || 1000} max={9999} value={draft.year_to} onChange={event => setDraft({ ...draft, year_to: event.target.value })} /></label>
+          <fieldset className="public-year-range"><legend>Year range</legend><div className="public-year-inputs">
+            <input aria-label="From year" placeholder="From" className="public-input" type="number" min={1000} max={9999} value={draft.year_from} onChange={event => setDraft({ ...draft, year_from: event.target.value })} />
+            <span aria-hidden="true">–</span>
+            <input aria-label="To year" placeholder="To" className="public-input" type="number" min={draft.year_from || 1000} max={9999} value={draft.year_to} onChange={event => setDraft({ ...draft, year_to: event.target.value })} />
+          </div></fieldset>
           <label>Type<select className="public-input" value={draft.document_type} onChange={event => setDraft({ ...draft, document_type: event.target.value })}>
           <option value="">All types</option>{["paper", "thesis", "report", "other"].map(type => <option key={type} value={type}>{type[0].toUpperCase() + type.slice(1)}</option>)}
           </select></label>
