@@ -94,12 +94,12 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
       {scopeControl}
       <div className="library-heading-actions">
         {context?.canUpload && <button className="icon-button" title="Manage corpus" aria-label="Manage corpus" onClick={() => setManaging(true)}><Settings2 size={21} /></button>}
-        <Button className="primary-action premium-action" onClick={() => setQueryOpen(true)} disabled={!context || !!contextError}><MessageSquare size={18} /> Query corpus</Button>
-        {context?.canUpload && <Button className="primary-action premium-action" onClick={() => setUploadOpen(true)} disabled={!!contextError}><Plus size={20} /> Add Documents</Button>}
+        <Button onClick={() => setQueryOpen(true)} disabled={!context || !!contextError}><MessageSquare size={18} /> Query corpus</Button>
+        {context?.canUpload && <Button variant="outline" onClick={() => setUploadOpen(true)} disabled={!!contextError}><Plus size={20} /> Add Documents</Button>}
       </div>
     </div>
     <h2 className="public-corpus-name">{context?.name || "UAF Research Corpus"}</h2>
-    <form onSubmit={event => { event.preventDefault(); setFilters({ ...draft }); setCursors([null]); }}>
+    <form className="public-library-filters" onSubmit={event => { event.preventDefault(); setFilters({ ...draft }); setCursors([null]); }}>
       <div className="library-search"><Search size={23} strokeWidth={1.6} aria-hidden="true" />
         <input type="search" aria-label="Search public library" placeholder="Search titles, authors, abstracts..." maxLength={200} value={draft.search} onChange={event => setDraft({ ...draft, search: event.target.value })} />
       </div>
@@ -114,9 +114,9 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
           <label>Type<select className="public-input" value={draft.document_type} onChange={event => setDraft({ ...draft, document_type: event.target.value })}>
           <option value="">All types</option>{["paper", "thesis", "report", "other"].map(type => <option key={type} value={type}>{type[0].toUpperCase() + type.slice(1)}</option>)}
           </select></label>
+          <label className="public-saved-filter"><input type="checkbox" checked={draft.bookmarked === "true"} onChange={event => setDraft({ ...draft, bookmarked: event.target.checked ? "true" : "" })} /> Saved only</label>
         </div>
         <div className="public-filter-actions">
-          <label className="public-saved-filter"><input type="checkbox" checked={draft.bookmarked === "true"} onChange={event => setDraft({ ...draft, bookmarked: event.target.checked ? "true" : "" })} /> Saved only</label>
           <Button type="submit" disabled={!context}><Search size={16} /> Search</Button>
           <Button variant="outline" type="button" title="Clear public filters" aria-label="Clear public filters" onClick={clearFilters}><X size={16} /> Clear</Button>
         </div>
@@ -130,28 +130,30 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
         <colgroup><col style={{ width: "43%" }} /><col style={{ width: "22%" }} /><col style={{ width: "25%" }} /><col style={{ width: "10%" }} /></colgroup>
         <thead><tr><th scope="col">Title</th><th scope="col">Author</th><th scope="col">Department</th><th scope="col">Year</th></tr></thead>
         <tbody>{visible.map(document => <tr key={document.id}>
-          <td><div className="public-document-cell"><button className="document-name" title={document.title} aria-label={`Details for ${document.title}`} onClick={() => setSelectedId(document.id)}>
+          <td><div className="public-document-cell">
             <span className="document-icon" aria-hidden="true"><File strokeWidth={1.6} /><span>{document.file_name.split(".").pop()?.slice(0, 4)}</span></span>
-            <span className="min-w-0"><span className="document-label">{document.title}</span><span className="public-document-kind">{document.document_type || "Document"} / {documentSize(document.file_size)}</span></span>
-          </button><button className="icon-button" aria-label={`${document.is_bookmarked ? "Remove bookmark for" : "Save"} ${document.title}`}
-            title={document.is_bookmarked ? "Remove bookmark" : "Save document"} aria-pressed={document.is_bookmarked}
+            <div className="public-document-summary"><div className="public-document-title">
+            <button className="document-name" title={document.title} aria-label={`Details for ${document.title}`} onClick={() => setSelectedId(document.id)}><span className="document-label">{document.title}</span></button>
+            <button className="icon-button" aria-label={`${document.is_bookmarked ? "Remove bookmark for" : "Bookmark"} ${document.title}`}
+            title={document.is_bookmarked ? "Remove bookmark" : "Bookmark document"} aria-pressed={document.is_bookmarked}
             disabled={bookmarking !== null} onClick={() => void toggleBookmark(document)}>
             {bookmarking === document.id ? <Loader2 size={18} className="animate-spin" /> : <Bookmark size={18} fill={document.is_bookmarked ? "currentColor" : "none"} />}
-          </button></div></td>
-          <td><span className="public-table-value">{document.authors_text || "Not recorded"}</span></td>
-          <td><span className="public-table-value">{document.department_name || "Not assigned"}</span></td>
-          <td>{document.publication_year || "Not recorded"}</td>
+          </button></div><span className="public-document-kind">{document.document_type || "Document"} / {documentSize(document.file_size)}</span></div></div></td>
+          <td><span className={`public-table-value${document.authors_text ? "" : " text-muted-foreground"}`}>{document.authors_text || "Not recorded"}</span></td>
+          <td><span className={`public-table-value${document.department_name ? "" : " text-muted-foreground"}`}>{document.department_name || "Not assigned"}</span></td>
+          <td><span className={document.publication_year ? undefined : "text-muted-foreground"}>{document.publication_year || "Not recorded"}</span></td>
         </tr>)}</tbody>
       </table> : <div className="library-empty"><BookOpen size={36} strokeWidth={1.4} /><h2>{cursors.length > 1 ? "No documents on this page" : Object.values(filters).some(Boolean) ? "No matching research" : "No published research yet"}</h2>
         {Object.values(filters).some(Boolean) && <Button variant="outline" onClick={clearFilters}>Clear filters</Button>}</div>}
     <div className="library-footer">
       <p role="status">{!busy && !failure ? `${visible.length} document${visible.length === 1 ? "" : "s"} on this page` : ""}</p>
-      <nav className="library-tools" aria-label="Public library pages">
+      <div className="library-tools"><nav className="library-tools" aria-label="Public library pages">
         <button className="icon-button" title="Previous page" aria-label="Previous page" disabled={busy || !!failure || cursors.length === 1} onClick={() => setCursors(values => values.slice(0, -1))}><ChevronLeft size={20} /></button>
         <span className="text-sm">Page {cursors.length}</span>
         <button className="icon-button" title="Next page" aria-label="Next page" disabled={busy || !!failure || documents.length <= PUBLIC_PAGE_SIZE} onClick={() => setCursors(values => [...values, visible[visible.length - 1].id])}><ChevronRight size={20} /></button>
-        <button className="icon-button" title="Refresh public library" aria-label="Refresh public library" disabled={busy && !failure} onClick={() => setRefresh(value => value + 1)}><RefreshCw size={17} /></button>
       </nav>
+        <button className="icon-button" title="Refresh public library" aria-label="Refresh public library" disabled={busy && !failure} onClick={() => setRefresh(value => value + 1)}><RefreshCw size={17} /></button>
+      </div>
     </div>
     <PublicDocumentDetails id={selectedId} onClose={() => setSelectedId(null)} />
     <PublicQuery open={queryOpen} onOpenChange={setQueryOpen} onSelect={id => { setQueryOpen(false); setSelectedId(id); }} />

@@ -123,18 +123,17 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
       <div className="library-heading">
         <div className="library-title"><h1>Library</h1><LockKeyhole size={27} strokeWidth={1.8} aria-label="Private library" /></div>
         {scopeControl}
-        {/* Added by ChatGPT: shared animated border preserves the existing upload handler. */}
-        <button className="primary-action premium-action" onClick={openUpload} disabled={loading || !!error}>
+        <Button className="library-upload-action" onClick={openUpload} disabled={loading || !!error}>
           <Plus size={21} strokeWidth={1.6} aria-hidden="true" /> Add Documents
-        </button>
+        </Button>
       </div>
       <div className="library-search">
         <Search size={23} strokeWidth={1.6} aria-hidden="true" />
         <input type="search" aria-label="Search your library" placeholder="Search your library..." value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
       <div className="library-filters" role="group" aria-label="Filename filters">
-        {filenameFilters.map(({ label, description }) => <button key={label} className="library-filter" title={description}
-          aria-label={description} aria-pressed={filter === label} onClick={() => setFilter(filter === label ? null : label)}>{label}</button>)}
+        {filenameFilters.map(({ label, description }) => <Button key={label} variant={filter === label ? "default" : "outline"} title={description}
+          aria-label={description} aria-pressed={filter === label} onClick={() => setFilter(filter === label ? null : label)}>{label}</Button>)}
         {(query || filter) && <button className="icon-button" aria-label="Clear filters" title="Clear filters" onClick={() => { setQuery(""); setFilter(null); }}><X size={18} /></button>}
       </div>
 

@@ -47,7 +47,7 @@ export default function EmailLogin({ initialEmail = "", initialPassword = "", pu
 
   const inputStyle = "mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:ring-2 focus:ring-green-700";
   return <main className="auth-page"><div className="w-full max-w-md"><div className="bg-white rounded-lg shadow-md p-8 space-y-6">
-    <div className="text-center"><h1 className="text-3xl font-bold text-gray-900">ResearchIQ</h1>
+    <div className="text-center"><h1 className="text-3xl font-bold text-gray-900">rAGRI search</h1>
       <p className="mt-2 text-sm text-gray-600">{recovery ? "Reset your password" : "Verify your email"}</p></div>
     {complete ? <div className="space-y-4"><p role="status" className="text-green-800">{notice}</p>
       {onComplete ? <button className="primary-action w-full justify-center" onClick={onComplete}>Back to sign in</button>

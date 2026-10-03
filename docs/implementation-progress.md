@@ -15,6 +15,35 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 ## Current Gate: Phase 7 Complete - Frontend Polish Before Phase 8
 
+### Bounded frontend polish - 3 October 2026
+
+- Applied the user's separate frontend-only audit before substantial Phase 8:
+  reused existing buttons, clarified public action hierarchy, aligned filters,
+  associated bookmarks with titles, top-aligned public rows, muted missing
+  metadata, and separated refresh from pagination. Visible branding is now
+  `rAGRI search` in the shared desktop/mobile shell, password and email login,
+  registration, browser title and chat logo alternative text.
+- Sidebar invisibility/background truncation was not reproduced in a browser.
+  Source already used a full-height fixed sidebar and a mobile drawer below
+  1024px. Shared CSS now explicitly sets navigation contrast, prevents shrinking
+  and permits viewport scrolling; sign-out retains its bottom placement.
+- Verification: 45 tests passed in four relevant suites (`library`,
+  `public-library`, `corpus-manager`, `email-login`); TypeScript passed with
+  `--noEmit --incremental false`; the production Next.js build passed. Existing
+  Next.js config, Browserslist and redundant line-clamp warnings remain.
+- The packaged image served login, registration and Library HTML successfully
+  with the new browser title in an isolated container with no network or mounts.
+  The temporary container was stopped afterward. This checks HTTP packaging,
+  not authenticated interaction or visual layout.
+- The verification Dockerfile lives outside the repository in the recovery
+  directory. Image: `researchiq-frontend:polish-20261003`; previous local image
+  retained as `researchiq-frontend:pre-polish-20261003`. No host dependencies,
+  package/lockfile, backend, API, database, auth behavior or routing changed.
+- On resuming the interrupted task, Docker had no application containers.
+  The full stack was not restarted. Browser visual acceptance and deployment
+  remain pending; this is an automated frontend checkpoint, not a new phase.
+  No unrelated Phase 8 implementation was started.
+
 ### Windows stale-test cleanup and Phase 7 live API acceptance - 3 October 2026
 
 - The user cancelled recovery of the old Linux MinIO/Chroma stores and explicitly

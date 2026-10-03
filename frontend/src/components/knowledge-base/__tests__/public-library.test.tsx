@@ -198,22 +198,33 @@ test("saves and removes a personal public bookmark and submits the saved-only fi
   const user = await openPublic();
   jest.mocked(api.post).mockResolvedValue(undefined);
   jest.mocked(api.delete).mockResolvedValue(undefined);
-  await user.click(screen.getByRole("button", { name: "Save Irrigation Efficiency" }));
+  const titleCell = screen.getByRole("button", { name: "Details for Irrigation Efficiency" }).closest("td")!;
+  expect(within(titleCell).getByRole("button", { name: "Bookmark Irrigation Efficiency" })).toHaveAttribute("aria-pressed", "false");
+  await user.click(screen.getByRole("button", { name: "Bookmark Irrigation Efficiency" }));
   const saved = await screen.findByRole("button", { name: "Remove bookmark for Irrigation Efficiency" });
   expect(saved).toHaveAttribute("aria-pressed", "true");
   expect(api.post).toHaveBeenCalledWith("/api/corpus/documents/9/bookmark");
   await user.click(saved);
-  await screen.findByRole("button", { name: "Save Irrigation Efficiency" });
+  await screen.findByRole("button", { name: "Bookmark Irrigation Efficiency" });
   expect(api.delete).toHaveBeenCalledWith("/api/corpus/documents/9/bookmark");
   await user.click(screen.getByRole("checkbox", { name: "Saved only" }));
   await user.click(screen.getByRole("button", { name: "Search" }));
   await waitFor(() => expect(api.get).toHaveBeenCalledWith("/api/corpus/documents?limit=21&bookmarked=true", expect.anything()));
 });
 
+test("refresh is a list action outside pagination and reloads the public catalog", async () => {
+  const user = await openPublic();
+  const pages = screen.getByRole("navigation", { name: "Public library pages" });
+  expect(within(pages).queryByRole("button", { name: "Refresh public library" })).not.toBeInTheDocument();
+  jest.mocked(api.get).mockClear();
+  await user.click(screen.getByRole("button", { name: "Refresh public library" }));
+  await waitFor(() => expect(api.get).toHaveBeenCalledWith("/api/corpus/documents?limit=21", expect.anything()));
+});
+
 test("failed bookmark saves retain their original state and show an error", async () => {
   const user = await openPublic();
   jest.mocked(api.post).mockRejectedValue(new ApiError(404, "Document not found"));
-  await user.click(screen.getByRole("button", { name: "Save Irrigation Efficiency" }));
+  await user.click(screen.getByRole("button", { name: "Bookmark Irrigation Efficiency" }));
   await screen.findByText("Document not found");
-  expect(screen.getByRole("button", { name: "Save Irrigation Efficiency" })).toHaveAttribute("aria-pressed", "false");
+  expect(screen.getByRole("button", { name: "Bookmark Irrigation Efficiency" })).toHaveAttribute("aria-pressed", "false");
 });

@@ -53,9 +53,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sidebar = (
     <>
       <Link href="/dashboard" className="app-brand" onClick={() => setMenuOpen(false)}>
-        {/* Added by ChatGPT: outlined RAG wordmark follows the supplied reference. */}
-        <span className="app-brand-mark" aria-hidden="true"><BookOpen size={38} strokeWidth={1} /><span>RAG</span></span>
-        <span>RAG Web UI</span>
+        <span className="app-brand-mark" aria-hidden="true"><BookOpen size={38} strokeWidth={1} /></span>
+        <span>rAGRI search</span>
       </Link>
       <nav aria-label="Main navigation" className="app-navigation">
         {navigation.map(({ name, href, icon: Icon }) => {
@@ -87,7 +86,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <a href="#main-content" className="skip-link">Skip to content</a>
       <aside className="app-sidebar">{sidebar}</aside>
       <header className="app-mobile-header">
-        <span>RAG Web UI</span>
+        <span>rAGRI search</span>
         <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
           <DialogTrigger asChild>
             <button className="icon-button" aria-label="Open navigation" title="Open navigation"><Menu /></button>

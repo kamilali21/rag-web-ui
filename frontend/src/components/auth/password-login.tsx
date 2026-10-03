@@ -65,7 +65,7 @@ export default function PasswordLogin({ emailOTP = false }: { emailOTP?: boolean
         <div className="bg-white rounded-lg shadow-md p-8 space-y-6">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900">
-              Welcome To RAG Web UI
+              Welcome To rAGRI search
             </h1>
             <p className="mt-2 text-sm text-gray-600">
               Please sign in to continue

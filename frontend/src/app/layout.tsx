@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 // Added by ChatGPT: use the reference's compact sans-serif through the local CSS font stack.
 
 export const metadata: Metadata = {
-  title: "RAG Web UI",
+  title: "rAGRI search",
   description: "A web UI for RAG applications",
 };
 
