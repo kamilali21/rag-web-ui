@@ -76,6 +76,10 @@
 .app-signout { margin-top: auto; width: 100%; text-align: left; }
 .app-sidebar a:focus-visible, .app-sidebar button:focus-visible, .mobile-navigation a:focus-visible, .mobile-navigation button:focus-visible { outline-color: #c5fc3c; }
 .app-main { margin-left: 240px; min-width: 0; min-height: 100dvh; padding: 20px 22px 24px; }
+.app-main:has(> .list-page) { display: flex; flex-direction: column; }
+.list-page { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.list-page > * { flex-shrink: 0; }
+.list-page > .library-footer, .list-page > .insights-selection-footer { margin-top: auto; padding-top: 18px; }
 .app-main:focus { outline: none; }
 .app-mobile-header { display: none; }
 .app-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 18px; min-height: 22px; margin-bottom: 18px; }

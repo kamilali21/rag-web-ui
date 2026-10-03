@@ -38,7 +38,7 @@ export function CorpusManager({ onBack, onForbidden }: { onBack: () => void; onF
     void load(); return () => { controller.abort(); clearTimeout(timer); };
   }, [filters, cursors, version, onForbidden]);
   const rows = tasks.slice(0, 20);
-  return <section aria-label="Corpus management">
+  return <section className="list-page" aria-label="Corpus management">
     <div className="corpus-manager-heading"><div><button className="corpus-back" onClick={onBack}><ArrowLeft size={17} /> Public library</button><h1>Manage corpus</h1><p>UAF Research Corpus</p></div>
       <div className="corpus-toolbar"><Button variant="outline" onClick={() => setDepartments(true)}><Building2 size={17} /> Departments</Button><button className="primary-action premium-action" onClick={() => setUpload(true)}><Plus size={18} /> Add Documents</button></div>
     </div>

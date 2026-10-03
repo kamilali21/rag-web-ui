@@ -17,6 +17,15 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 ### Bounded frontend polish - 3 October 2026
 
+- Second screenshot follow-up: restored the Private Library header upload glow.
+  Public/Private Library, corpus management and the Insights selection footer
+  now share a full-height flex list layout with auto top margin on footers.
+  Short/empty pages place controls at the bottom; long pages keep them after
+  content without overlaying rows. Thirty-six affected frontend tests,
+  TypeScript and production build passed. Deployed only frontend image
+  `researchiq-frontend:footers-20261003`; live HTTP/CSS check passed and frontend
+  is healthy. Rendered browser verification remains unavailable in this session.
+
 - Follow-up from the user's screenshot: replaced the oversized three-column
   filter grid with a compact wrapping desktop row, grouped From/To under Year
   range, and aligned Search/Clear with the controls. Narrow screens retain a

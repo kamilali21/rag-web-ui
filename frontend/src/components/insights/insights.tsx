@@ -54,7 +54,7 @@ export function Insights() {
   };
 
   return (
-    <section className="insights-page" aria-label="Insights">
+    <section className="insights-page list-page" aria-label="Insights">
       {/* Added by ChatGPT: reference heading and action pair inherit the shared theme. */}
       <div className="dashboard-heading insights-heading">
         <h1>Insights</h1>

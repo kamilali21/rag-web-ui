@@ -118,12 +118,12 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
   };
 
   return (
-    <section aria-label="Private library">
+    <section className="list-page" aria-label="Private library">
       {/* Added by ChatGPT: the original private workflows stay separate from public corpus management. */}
       <div className="library-heading">
         <div className="library-title"><h1>Library</h1><LockKeyhole size={27} strokeWidth={1.8} aria-label="Private library" /></div>
         {scopeControl}
-        <Button className="library-upload-action" onClick={openUpload} disabled={loading || !!error}>
+        <Button className="library-upload-action primary-action premium-action" onClick={openUpload} disabled={loading || !!error}>
           <Plus size={21} strokeWidth={1.6} aria-hidden="true" /> Add Documents
         </Button>
       </div>

@@ -88,7 +88,7 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
   // Added by ChatGPT: management is a separate admin surface; Public remains published-only.
   if (managing && context?.canUpload) return <CorpusManager onBack={() => { setManaging(false); setRefresh(value => value + 1); }} onForbidden={forbidden} />;
 
-  return <section aria-label="Public library">
+  return <section className="list-page" aria-label="Public library">
     <div className="library-heading">
       <div className="library-title"><h1>Library</h1><Globe size={27} strokeWidth={1.8} aria-label="Public library" /></div>
       {scopeControl}
