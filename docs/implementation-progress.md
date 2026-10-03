@@ -13,7 +13,54 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 7 Admin Workflow - Live Verification In Progress
+## Current Gate: Phase 7 Admin Workflow - Final Browser Acceptance Pending
+
+### Windows stale-test cleanup and Phase 7 live API acceptance - 3 October 2026
+
+- The user cancelled recovery of the old Linux MinIO/Chroma stores and explicitly
+  authorized removal of old disposable documents proven to have neither source
+  objects nor vectors. No Linux restore or index rebuild was performed.
+- Removed document IDs `1,2,3,4,9,10,11,18,19,23,24,25,26,27`, their 571 chunks,
+  dependent tasks/uploads, five academic metadata rows and one bookmark. Also
+  removed the old failed task `1`/upload `1`, whose source was absent. Public
+  documents used the existing archive-first deletion service. Private documents
+  required exact ORM cleanup: the existing API only deletes whole private KBs,
+  which would also destroy the protected new document in KB 1.
+- Preserved document `28` (`Getting started with OneDrive.pdf`, KB 1), task `28`,
+  upload `26`, all five chunks, its exact MinIO bytes and five vector payloads.
+  All users, roles, allowlisting, pre-existing authentication/session records,
+  departments, KBs, conversations, messages and `riq_004` were unchanged by
+  value-hash comparison. No orphan upload rows remain. Empty KBs were retained.
+- Before cleanup, saved a complete MySQL dump and protected-data receipts outside
+  the repository at `C:/Users/tayya/Projects/ResearchIQ-recovery/20261003-cleanup/`.
+  The dump SHA-256 is `27d28adc0eb87fd0626ae9c8f8917971a3036ba03525f4bca459a548ea5a1e94`.
+  These private backup/receipt files must not be committed.
+- The user reports a fresh Windows PDF upload, successful processing/indexing,
+  retrieval and correct generated answer, persisted after refresh. A transient
+  post-answer rendering error was reported; no reproducible failure has been
+  established and no broad debugging or code change was undertaken.
+- Completed a bounded live HTTP gate through existing Nginx using temporary
+  maintenance sessions for existing admin/researcher identities. Fifty asserted
+  responses (including status polling, not fifty independent tests) covered real
+  public upload/ingestion, draft hiding, inbox filters, metadata validation/edit,
+  department create/edit/deactivate, rename, publish/unpublish, content download,
+  real Chroma evidence, bookmarks, terminal archive and deletion. Researcher
+  management and invalid-CSRF requests were denied. A synthetic failed task with
+  a valid retained source retried through the actual endpoint/background worker
+  and completed successfully. This is not live SMTP/password-issuance testing.
+- Removed exact synthetic documents `29,30`, tasks `29,30`, department `5` and
+  temporary sessions. Full post-gate receipts matched all protected SQL rows,
+  MinIO object bytes and vectors. Final state: one document, five chunks, one
+  task, one upload, no public documents/bookmarks; seven users retained.
+- Existing automated evidence remains 196 MySQL passes, 184 SQLite passes/12
+  skips, 66 frontend tests and TypeScript/build success at the recovered Phase 7
+  checkpoint. These suites were not rerun on Windows: application code was not
+  changed, and the running images do not include pytest/Jest/TypeScript tooling.
+- Browser automation is unavailable in this chat. The user agreed to refresh
+  Private/Public Library and check that Manage corpus opens. That visual
+  confirmation remains pending; do not claim Phase 7 complete or start Phase 8
+  until it arrives. The next existing plan phase is mapping current owner-scoped
+  KB functionality into Private Library UI/APIs, not scope-aware retrieval.
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
