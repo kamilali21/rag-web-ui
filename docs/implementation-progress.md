@@ -40,9 +40,16 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
   retained as `researchiq-frontend:pre-polish-20261003`. No host dependencies,
   package/lockfile, backend, API, database, auth behavior or routing changed.
 - On resuming the interrupted task, Docker had no application containers.
-  The full stack was not restarted. Browser visual acceptance and deployment
-  remain pending; this is an automated frontend checkpoint, not a new phase.
+  The full stack was not restarted. At that checkpoint, browser visual acceptance
+  and deployment remained pending; this was not a new phase.
   No unrelated Phase 8 implementation was started.
+- After the user restarted the stack, confirmed it still served the old frontend
+  image `997b8c5f6013`. Deployed the tested polish image `d9dbee5c7076` using
+  `docker compose up -d --no-deps --no-build frontend`; other services stayed
+  running. Live Nginx checks returned HTTP 200, the `rAGRI search` title and new
+  Library CSS; unauthenticated `/api/auth/me` still returned 401. Frontend healthy.
+  Chrome and in-app browser connection attempts both returned unavailable, so
+  authenticated visual/interaction acceptance is still pending.
 
 ### Windows stale-test cleanup and Phase 7 live API acceptance - 3 October 2026
 
