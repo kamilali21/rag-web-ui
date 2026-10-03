@@ -66,6 +66,12 @@ private RAG/citation pipeline remain unchanged.
 
 ## Verification And Recovery
 
+Phase 7 completed on 3 October 2026: recovered automated evidence, Windows live
+API/storage acceptance and the user's Library/Manage corpus refresh confirmation
+are recorded in `implementation-progress.md`. Completion checkpoint:
+`researchiq-phase7-verified-20261003`. No backend or schema changes were needed
+to close this gate.
+
 The exact final automated and live results are recorded in
 `implementation-progress.md`. The regression command adds
 `tests/test_phase7_admin_workflow.py` before the Phase 6/5/4/3/2 and baseline suites.

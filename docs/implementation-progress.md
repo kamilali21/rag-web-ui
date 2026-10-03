@@ -13,7 +13,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 7 Admin Workflow - Final Browser Acceptance Pending
+## Current Gate: Phase 7 Complete - Frontend Polish Before Phase 8
 
 ### Windows stale-test cleanup and Phase 7 live API acceptance - 3 October 2026
 
@@ -56,11 +56,14 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
   skips, 66 frontend tests and TypeScript/build success at the recovered Phase 7
   checkpoint. These suites were not rerun on Windows: application code was not
   changed, and the running images do not include pytest/Jest/TypeScript tooling.
-- Browser automation is unavailable in this chat. The user agreed to refresh
-  Private/Public Library and check that Manage corpus opens. That visual
-  confirmation remains pending; do not claim Phase 7 complete or start Phase 8
-  until it arrives. The next existing plan phase is mapping current owner-scoped
-  KB functionality into Private Library UI/APIs, not scope-aware retrieval.
+- The user confirmed the refresh check worked: Private Library retains the new
+  OneDrive PDF, Public Library has no old files, and Manage corpus opens. Together
+  with the recorded automated and live evidence, this closes Phase 7. The local
+  completion tag is `researchiq-phase7-verified-20261003`. Historical pending
+  statements below describe the earlier Linux checkpoint, not the current gate.
+- The next existing plan task is mapping current owner-scoped KB functionality
+  into Private Library UI/APIs. The user requested a bounded frontend usability
+  and visible-branding pass before substantial Phase 8 work.
 
 - Branch: `codex/master-integration`.
 - Pre-integration source snapshot: `09a9485` (existing frontend work, not a stability certification).
