@@ -13,7 +13,21 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 8 COMPLETE; Phase 9 next
+## Current Gate: Phase 9 Scope-aware Retrieval - First Increment
+
+### Phase 9 started - 4 October 2026
+
+- Phase 8 completion checkpoint: `ad8960e`, tag
+  `researchiq-phase8-verified-20261004`.
+- Added SQL source resolution for Public/Private/Both: latest Ready documents,
+  current-user private ownership, canonical published corpus, no admin bypass,
+  invalid/empty scope fail-closed behavior. No vector/LLM call is made here.
+- Seven authorization tests and six read-only live MySQL checks for two users
+  passed. No session/data/schema changes and no live chat behavior change.
+- Next existing-plan task: constrain existing vector searches to this permitted
+  document set before retrieval, then recheck SQL permission before exposing
+  evidence. Phase 9 remains in progress; Phase 10 has not started.
+- Details: `docs/phase9-scope-aware-retrieval.md`.
 
 ### Phase 8 completion - 4 October 2026
 
