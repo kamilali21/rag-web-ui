@@ -15,6 +15,23 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 ## Current Gate: Phase 7 Complete - Frontend Polish Before Phase 8
 
+### Final requested frontend corrections - 4 October 2026
+
+- Restored work interrupted after `ac6a1e6`: compact public document rows by
+  placing bookmark beside both title and type/size, with single-line desktop
+  titles/metadata and the shared 54px row minimum. Mobile can still wrap.
+- Added the right-hand search-bar filter toggle, initially collapsed, with
+  expanded state, keyboard support and active-filter count. Search remains
+  available through Enter or the search icon while collapsed. Filter drafts
+  and applied state survive hiding/showing the panel.
+- Private/Public Library now share full-width search bars. No API, schema,
+  data, authentication or RAG change. Twenty-two frontend tests, TypeScript
+  and production build passed. Frontend image: `researchiq-frontend:rows-20261004`.
+- Browser inventory is still empty. The user installed VS Code's
+  `techer.open-in-browser`, which launches files but does not provide this chat
+  with browser automation. Visual acceptance is not claimed. Existing warning
+  classes are unchanged. Phase 8 is authorized after these corrections.
+
 ### Bounded frontend polish - 3 October 2026
 
 - Second screenshot follow-up: restored the Private Library header upload glow.

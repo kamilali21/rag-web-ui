@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bookmark, BookOpen, ChevronLeft, ChevronRight, File, Globe, Loader2, MessageSquare, Plus, RefreshCw, Search, Settings2, X } from "lucide-react";
+import { Bookmark, BookOpen, ChevronLeft, ChevronRight, File, Filter, Globe, Loader2, MessageSquare, Plus, RefreshCw, Search, Settings2, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { documentSize } from "@/lib/library";
 import { Department, emptyPublicFilters, PUBLIC_PAGE_SIZE, PublicDocument, publicDocumentsUrl } from "@/lib/public-library";
@@ -14,6 +14,7 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
   const [context, setContext] = useState<{ name: string; canUpload: boolean; departments: Department[] } | null>(null);
   const [draft, setDraft] = useState(emptyPublicFilters);
   const [filters, setFilters] = useState(emptyPublicFilters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [cursors, setCursors] = useState<(number | null)[]>([null]);
   const [documents, setDocuments] = useState<PublicDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +85,7 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
   const visible = documents.slice(0, PUBLIC_PAGE_SIZE);
   const failure = contextError || error;
   const busy = !context || loading;
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) => key !== "search" && Boolean(value)).length;
 
   // Added by ChatGPT: management is a separate admin surface; Public remains published-only.
   if (managing && context?.canUpload) return <CorpusManager onBack={() => { setManaging(false); setRefresh(value => value + 1); }} onForbidden={forbidden} />;
@@ -100,10 +102,16 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
     </div>
     <h2 className="public-corpus-name">{context?.name || "UAF Research Corpus"}</h2>
     <form className="public-library-filters" onSubmit={event => { event.preventDefault(); setFilters({ ...draft }); setCursors([null]); }}>
-      <div className="library-search"><Search size={23} strokeWidth={1.6} aria-hidden="true" />
+      <div className="library-search">
+        <button type="submit" className="icon-button" aria-label="Search public library" title="Search public library" disabled={!context}><Search size={23} strokeWidth={1.6} aria-hidden="true" /></button>
         <input type="search" aria-label="Search public library" placeholder="Search titles, authors, abstracts..." maxLength={200} value={draft.search} onChange={event => setDraft({ ...draft, search: event.target.value })} />
+        <button type="button" className="icon-button public-filter-toggle" aria-label="Toggle public filters" title={filtersOpen ? "Hide filters" : "Show filters"} aria-expanded={filtersOpen} aria-controls="public-filter-panel" onClick={() => setFiltersOpen(open => !open)}>
+          <Filter size={20} aria-hidden="true" />
+          {activeFilterCount > 0 && <span className="public-filter-count" aria-label={`${activeFilterCount} active filters`}>{activeFilterCount}</span>}
+        </button>
       </div>
-      <div className="public-filters">
+      <div id="public-filter-panel" hidden={!filtersOpen}>
+      {filtersOpen && <div className="public-filters">
         <div className="public-filter-fields">
           <label>Author<input className="public-input" value={draft.author} maxLength={200} onChange={event => setDraft({ ...draft, author: event.target.value })} /></label>
           <label>Department<select className="public-input" value={draft.department_id} onChange={event => setDraft({ ...draft, department_id: event.target.value })}>
@@ -123,6 +131,7 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
           <Button type="submit" disabled={!context}><Search size={16} /> Search</Button>
           <Button variant="outline" type="button" title="Clear public filters" aria-label="Clear public filters" onClick={clearFilters}><X size={16} /> Clear</Button>
         </div>
+      </div>}
       </div>
     </form>
     {permissionNotice && <p role="alert">{permissionNotice}</p>}

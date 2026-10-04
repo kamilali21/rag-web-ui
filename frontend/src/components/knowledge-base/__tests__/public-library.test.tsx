@@ -55,6 +55,7 @@ test("public toggle reads the shared corpus, hides researcher writes and returns
 
 test("submits bounded metadata filters to the public server, not filename shortcuts", async () => {
   const user = await openPublic();
+  await user.click(screen.getByRole("button", { name: "Toggle public filters" }));
   await user.type(screen.getByRole("searchbox", { name: "Search public library" }), "water");
   await user.type(screen.getByLabelText("Author", { selector: "input" }), "Ayesha");
   await user.selectOptions(screen.getByLabelText("Department", { selector: "select" }), "3");
@@ -81,7 +82,7 @@ test("pages with server cursors and resets pagination on filter changes", async 
   await user.click(screen.getByRole("button", { name: "Previous page" }));
   await screen.findByText("Study 40");
   await user.click(screen.getByRole("button", { name: "Next page" })); await screen.findByText("Older study");
-  await user.click(screen.getByRole("button", { name: "Search" }));
+  await user.click(screen.getByRole("button", { name: "Search public library" }));
   await screen.findByText("Study 40");
   expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
 });
@@ -189,6 +190,28 @@ test("switching scope aborts public work and prevents late results from replacin
   expect(screen.queryByText("Irrigation Efficiency")).not.toBeInTheDocument();
 });
 
+test("filter toggle is keyboard accessible and preserves applied filters while collapsed", async () => {
+  const user = await openPublic();
+  const toggle = screen.getByRole("button", { name: "Toggle public filters" });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByLabelText("Author", { selector: "input" })).not.toBeInTheDocument();
+  toggle.focus();
+  await user.keyboard("{Enter}");
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await user.type(screen.getByLabelText("Author", { selector: "input" }), "Ayesha");
+  await user.click(screen.getByRole("button", { name: "Search" }));
+  await waitFor(() => expect(api.get).toHaveBeenCalledWith("/api/corpus/documents?limit=21&author=Ayesha", expect.anything()));
+  await user.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByLabelText("1 active filters")).toBeInTheDocument();
+  await user.type(screen.getByRole("searchbox"), "water{Enter}");
+  await waitFor(() => expect(api.get).toHaveBeenCalledWith("/api/corpus/documents?limit=21&search=water&author=Ayesha", expect.anything()));
+  await user.click(toggle);
+  expect(screen.getByLabelText("Author", { selector: "input" })).toHaveValue("Ayesha");
+  await user.click(screen.getByRole("button", { name: "Clear public filters" }));
+  expect(screen.queryByLabelText("1 active filters")).not.toBeInTheDocument();
+});
+
 test("filter URLs encode user input and never accept a private KB scope", () => {
   expect(publicDocumentsUrl({ ...emptyPublicFilters, search: "a&kb_id=1", author: "100%" }, 9))
     .toBe("/api/corpus/documents?limit=21&search=a%26kb_id%3D1&author=100%25&before_id=9");
@@ -207,6 +230,7 @@ test("saves and removes a personal public bookmark and submits the saved-only fi
   await user.click(saved);
   await screen.findByRole("button", { name: "Bookmark Irrigation Efficiency" });
   expect(api.delete).toHaveBeenCalledWith("/api/corpus/documents/9/bookmark");
+  await user.click(screen.getByRole("button", { name: "Toggle public filters" }));
   await user.click(screen.getByRole("checkbox", { name: "Saved only" }));
   await user.click(screen.getByRole("button", { name: "Search" }));
   await waitFor(() => expect(api.get).toHaveBeenCalledWith("/api/corpus/documents?limit=21&bookmarked=true", expect.anything()));
