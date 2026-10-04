@@ -33,7 +33,7 @@ export function documentStatus(document: LibraryDocument) {
   const latest = [...(document.processing_tasks || [])].sort((a, b) => b.id - a.id)[0];
   const status = latest?.status.toLowerCase() || "unknown";
   const labels: Record<string, string> = {
-    completed: "Completed", processing: "Processing", pending: "Pending", failed: "Failed",
+    completed: "Ready", processing: "Processing", pending: "Pending", failed: "Failed",
   };
   return { status, label: labels[status] || "Unknown" };
 }

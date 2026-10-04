@@ -30,6 +30,7 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
   const [refresh, setRefresh] = useState(0);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<string | null>(null);
+  const [processingFilter, setProcessingFilter] = useState("all");
   const [collectionFilter, setCollectionFilter] = useState("all");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<number | null>(null);
@@ -79,8 +80,11 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
   const visibleDocuments = documents.filter((document) => {
     const matchesSearch = document.file_name.toLowerCase().includes(query.trim().toLowerCase());
     const shortcut = filenameFilters.find((item) => item.label === filter);
-    return matchesSearch && (!shortcut || shortcut.pattern.test(document.file_name));
+    return matchesSearch && (!shortcut || shortcut.pattern.test(document.file_name)) &&
+      (processingFilter === "all" || documentStatus(document).status === processingFilter);
   });
+  const hasFilters = Boolean(query || filter || processingFilter !== "all");
+  const clearFilters = () => { setQuery(""); setFilter(null); setProcessingFilter("all"); };
 
   // Added by ChatGPT: uploads still use the upstream upload/preview/process workflow and collection IDs.
   const openUpload = () => {
@@ -131,18 +135,21 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
         <Search size={23} strokeWidth={1.6} aria-hidden="true" />
         <input type="search" aria-label="Search your library" placeholder="Search your library..." value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
-      <div className="library-filters" role="group" aria-label="Filename filters">
+      <div className="library-filters" role="group" aria-label="Private library filters">
         {filenameFilters.map(({ label, description }) => <Button key={label} variant={filter === label ? "default" : "outline"} title={description}
           aria-label={description} aria-pressed={filter === label} onClick={() => setFilter(filter === label ? null : label)}>{label}</Button>)}
-        {(query || filter) && <button className="icon-button" aria-label="Clear filters" title="Clear filters" onClick={() => { setQuery(""); setFilter(null); }}><X size={18} /></button>}
+        <select className="library-select" aria-label="Processing status" value={processingFilter} onChange={event => setProcessingFilter(event.target.value)}>
+          <option value="all">All processing states</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="completed">Ready</option><option value="failed">Failed</option><option value="unknown">Unknown</option>
+        </select>
+        {hasFilters && <button className="icon-button" aria-label="Clear filters" title="Clear filters" onClick={clearFilters}><X size={18} /></button>}
       </div>
 
       {/* Added by ChatGPT: real loading, failure, and empty states never substitute sample documents. */}
       {loading ? <div className="library-empty" role="status"><Loader2 className="animate-spin" /><p>Loading your library...</p></div> :
         error ? <div className="library-empty" role="alert"><h2>Library unavailable</h2><p>{error}</p><Button onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} /> Retry</Button></div> :
         visibleDocuments.length > 0 ? <LibraryTable documents={visibleDocuments} onSelect={setSelectedDocument} /> :
-        <div className="library-empty"><BookOpen size={36} strokeWidth={1.4} /><h2>{query || filter ? "No matching documents" : "No documents yet"}</h2>
-          {query || filter ? <Button variant="outline" onClick={() => { setQuery(""); setFilter(null); }}>Clear filters</Button> :
+          <div className="library-empty"><BookOpen size={36} strokeWidth={1.4} /><h2>{hasFilters ? "No matching documents" : "No documents yet"}</h2>
+            {hasFilters ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> :
             <Button onClick={openUpload}><Plus size={18} /> Add Documents</Button>}</div>}
 
       <div className="library-footer">

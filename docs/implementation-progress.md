@@ -13,7 +13,30 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 7 Complete - Frontend Polish Before Phase 8
+## Current Gate: Phase 8 Private Library - First Increment
+
+### Phase 8 started - 4 October 2026
+
+- Re-read the full master plan, Phase 7 workflow and current history. Completed
+  the three requested frontend corrections at `ed5a0ee` before beginning Phase 8.
+- Mapped the existing owner-scoped KB routes, authorization helpers, uploader,
+  private catalog, task polling, chat and collection lifecycle to the plan in
+  `phase8-private-library.md`. No new architecture or replacement ingestion.
+- First increment: filter existing private document rows by their latest
+  processing status, combining with filename/category/collection selection;
+  display backend `completed` as Ready. Clear resets the new filter too.
+- Twenty-three frontend tests and TypeScript passed. Live read-only API checks
+  passed for two existing verified users: identity, owned collections/documents,
+  and foreign-private-KB denial (six checks, one current document examined).
+  Exact temporary maintenance sessions were deleted in a finally block; no
+  documents, roles or pre-existing sessions were changed.
+- Phase 8 remains in progress. Persistent pre-document task visibility, safe
+  per-document deletion and server-side personal catalog filtering/pagination
+  remain unfinished. No Phase 9 or later workflow was started.
+- Production build passed; only frontend was recreated with
+  `researchiq-frontend:phase8-status-20261004`. Live HTTP/bundle checks confirm
+  the public disclosure and private state filter are served. The other five
+  services stayed running. Browser visual acceptance remains pending.
 
 ### Final requested frontend corrections - 4 October 2026
 

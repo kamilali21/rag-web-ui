@@ -81,3 +81,24 @@ test("uses the latest processing attempt and normalizes server UTC timestamps", 
   expect(documentStatus({ ...document, processing_tasks: [] }).label).toBe("Unknown");
   expect(documentDate("2026-09-15T08:00:00").toISOString()).toBe("2026-09-15T08:00:00.000Z");
 });
+
+test("filters private documents by their latest processing state and combines filename search", async () => {
+  const ready = { ...document, id: 14, file_name: "Ready_Paper.pdf", processing_tasks: [{ id: 9, status: "completed" }] };
+  const failed = { ...document, id: 15, file_name: "Failed_Paper.pdf", processing_tasks: [{ id: 8, status: "failed" }, { id: 2, status: "completed" }] };
+  jest.mocked(api.get).mockResolvedValue([{ ...collections[0], documents: [document, ready, failed] }]);
+  const user = userEvent.setup();
+  render(<Library />);
+  await screen.findByText("Ready_Paper.pdf");
+  await user.selectOptions(screen.getByRole("combobox", { name: "Processing status" }), "completed");
+  expect(screen.getByRole("button", { name: "Details for Ready_Paper.pdf" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Details for Failed_Paper.pdf" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Details for Research_Paper_ML.pdf" })).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByRole("combobox", { name: "Processing status" }), "failed");
+  expect(screen.getByRole("button", { name: "Details for Failed_Paper.pdf" })).toBeInTheDocument();
+  await user.type(screen.getByRole("searchbox"), "Ready");
+  expect(screen.getByText("No matching documents")).toBeInTheDocument();
+  await user.click(screen.getAllByRole("button", { name: "Clear filters" })[0]);
+  expect(screen.getByRole("combobox", { name: "Processing status" })).toHaveValue("all");
+  expect(screen.getAllByRole("button", { name: /^Details for/ })).toHaveLength(3);
+  expect(documentStatus(ready)).toEqual({ status: "completed", label: "Ready" });
+});
