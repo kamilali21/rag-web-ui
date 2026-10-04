@@ -546,3 +546,13 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 19. Cross-feature security testing.
 20. RAG evaluation.
 21. Deployment hardening and recovery verification.
+
+### Mobile Library correction - 4 October 2026
+
+Before resuming Phase 9, fixed mobile actions so the admin icon does not consume
+an equal button column, labels stay on one line, and whole actions can wrap.
+Kept the original glowing treatment. Mobile public cards now use a consistent
+right-edge bookmark and a compact, single metadata row; desktop rules unchanged.
+The 24 Library/Public Library tests and production build/type checks passed.
+Deployed frontend-only image `researchiq-frontend:mobile-20261004`; live CSS
+asset check passed. Browser visual inspection remains unavailable.

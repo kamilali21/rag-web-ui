@@ -184,8 +184,6 @@
 .public-source svg { flex-shrink: 0; }
 .public-file-input { max-width: 100%; font-size: 14px; }
 @media (max-width: 640px) {
-  .library-heading-actions { width: 100%; margin-left: 0; }
-  .library-heading-actions > button { flex: 1; font-size: 14px; }
   .public-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .public-year-range, .public-filter-actions { grid-column: 1 / -1; }
   .public-filter-actions > button { flex: 1; }
@@ -285,6 +283,11 @@
   .library-scope { margin-left: auto; }
   .library-scope button { width: 72px; font-size: 16px; }
   .library-heading > .library-upload-action { margin-left: 0; width: 100%; }
+  .library-heading-actions { width: 100%; margin-left: 0; align-items: center; gap: 8px; }
+  .library-heading-actions > .icon-button { flex: 0 0 36px; }
+  .library-heading-actions > .primary-action { flex: 1 0 auto; font-size: 14px; padding: 8px 12px; }
+  .library-heading .primary-action { white-space: nowrap; height: auto; min-height: 44px; }
+  .library-heading .primary-action svg { flex-shrink: 0; }
   .library-search input { font-size: 16px; }
   .library-table, .library-table tbody { display: block; }
   .library-table colgroup, .library-table thead { display: none; }
@@ -295,7 +298,16 @@
   .library-table td:nth-child(2) { font-size: 14px; color: #56584d; }
   .library-table td:nth-child(3) { grid-column: 1; grid-row: 3; font-size: 14px; color: #56584d; }
   .library-table td:last-child { grid-column: 2; grid-row: 2/4; align-self: center; }
-  .public-library-table td:last-child { align-self: start; }
+  .public-library-table tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto; gap: 4px 12px; padding: 8px 12px; }
+  .public-library-table td { min-width: 0; }
+  .public-library-table td:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .public-library-table td:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .public-library-table td:last-child { grid-column: 3; grid-row: 2; align-self: center; }
+  .public-library-table td:not(:first-child) { font-size: 12px; line-height: 18px; }
+  .public-library-table .public-table-value, .public-library-table .document-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .public-document-cell { gap: 10px; }
+  .public-document-summary { grid-template-columns: minmax(0, 1fr) 44px; }
+  .public-document-title > .icon-button { width: 44px; height: 44px; }
   .document-label { font-size: 16px; }
   .document-status { font-size: 14px; min-width: 90px; padding: 4px 12px; }
   .library-footer { font-size: 15px; margin-top: 18px; }
