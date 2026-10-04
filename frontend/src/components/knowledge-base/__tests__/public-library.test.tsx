@@ -17,6 +17,7 @@ const privateCollection = { id: 1, name: "My private collection", documents: [{ 
   knowledge_base_id: 1, file_name: "Private notes.pdf", processing_tasks: [{ id: 1, status: "completed" }] }] };
 let admin = false;
 const get = async (url: string): Promise<any> => {
+  if (url.startsWith("/api/knowledge-base/catalog?")) return { items: privateCollection.documents, total: 1, has_active_tasks: false };
   if (url.startsWith("/api/knowledge-base?")) return [privateCollection];
   if (url === "/api/knowledge-base/1") return privateCollection;
   if (url === "/api/corpus") return { id: 8, name: "UAF Research Corpus" };

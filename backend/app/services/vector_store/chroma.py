@@ -34,6 +34,9 @@ class ChromaVectorStore(BaseVectorStore):
     def delete(self, ids: List[str]) -> None:
         """Delete documents from Chroma"""
         self._store.delete(ids)
+        # Pre-baseline vectors used generated IDs but retained relational chunk_id metadata.
+        for offset in range(0, len(ids), 100):
+            self._store._collection.delete(where={"chunk_id": {"$in": ids[offset:offset + 100]}})
     
     def as_retriever(self, **kwargs: Any):
         """Return a retriever interface"""

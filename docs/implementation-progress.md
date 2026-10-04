@@ -13,7 +13,38 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 8 Private Library - First Increment
+## Current Gate: Phase 8 COMPLETE; Phase 9 next
+
+### Phase 8 completion - 4 October 2026
+
+- Completed Private Library SQL search/filter/pagination, persistent staged and
+  failed-upload visibility, owner-only content viewing and exact-file deletion.
+  Storage failures retain retryable references and display Failed. Active jobs
+  cannot be deleted; private access has no admin override.
+- Reused ingestion, original KB routes and existing SQL/MinIO/Chroma stores.
+  Schema remains `riq_004`; no production migration or auth/code redesign.
+- Validation: 194 backend regression tests passed (39 environment-specific
+  skips); final Phase 8 MySQL suite passed all 12 checks in the isolated
+  `researchiq_phase2_test` schema; all 70 frontend tests, TypeScript and
+  production build passed. An existing OTP UI test now waits for its effect
+  before asserting cooldown; authentication code is unchanged.
+- Live synthetic PDF: upload, pending/ready catalog, SQL/chunk/vector agreement,
+  authenticated PDF content, retrieval, streamed cited answer, saved-chat reopen,
+  cross-owner 404s, real parser failure visibility, file/upload/collection cleanup.
+  All original SQL records, both existing documents, MinIO object fingerprints
+  and Chroma vector fingerprints match before/after. Four temporary sessions and
+  the exact synthetic collection/chat were removed.
+- Cold embedding startup took roughly five minutes, exceeding the initial
+  240-second test deadline. Resumed the same completed job; no worker was killed.
+  The final receipt normalizes JSON tuple/list representation before comparison.
+- Deployed `researchiq-frontend:phase8-final-20261004` and restarted only backend;
+  frontend is healthy and live bundles expose the catalog, deletion, pagination
+  and filter disclosure. Browser inventory still reports no connected browser
+  even after the user attached the page; rendered-browser acceptance is not
+  claimed. This completion uses automated UI and live API acceptance.
+- Backup/rollback and scope boundaries: `docs/phase8-private-library.md`.
+  Next existing-plan task: Phase 9 Public/Private/Both authorization and vector
+  retrieval constraints, starting with SQL resolution of permitted sources.
 
 ### Phase 8 started - 4 October 2026
 

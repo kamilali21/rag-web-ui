@@ -354,10 +354,9 @@ def process_document_background(
                 knowledge_base_id=kb_id
             )
             db.add(document)
-            if retain_source:
-                # Link partial public documents so deletion cannot race a running ingestion task.
-                db.flush()
-                task.document_id = document.id
+            # Persist the link for private and public partial jobs before external writes.
+            db.flush()
+            task.document_id = document.id
             db.commit()
             db.refresh(document)
             logger.info(f"Task {task_id}: Document record created with ID {document.id}")
@@ -395,9 +394,8 @@ def process_document_background(
             
             # 7. 添加到向量存储
             logger.info(f"Task {task_id}: Adding chunks to vector store")
-            if retain_source:
-                # Added by ChatGPT: persist public cleanup IDs before any partial external vector write.
-                db.commit()
+            # Every partial vector write must have durable SQL cleanup IDs.
+            db.commit()
             vector_store.add_documents(chunks)
             # 移除 persist() 调用，因为新版本不需要
             logger.info(f"Task {task_id}: Chunks added to vector store")
@@ -427,6 +425,7 @@ def process_document_background(
                 logger.warning(f"Task {task_id}: Failed to clean up local temp file: {str(e)}")
         
     except Exception as e:
+        db.rollback()
         # Added by ChatGPT: public jobs expose no parser/provider internals in task errors or logs.
         if retain_source:
             logger.error("Public task %s failed (%s)", task_id, type(e).__name__)

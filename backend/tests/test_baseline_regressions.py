@@ -103,10 +103,10 @@ def test_collection_deletion_uses_store_contract_and_recursive_object_cleanup():
     from app.api.api_v1 import knowledge_base
 
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(documents=[])
+    db.query.return_value.filter.return_value.first.return_value = None
     store, minio = MagicMock(), MagicMock()
     minio.list_objects.return_value = [SimpleNamespace(object_name="kb_71/temp/fixture.pdf")]
-    with patch.object(knowledge_base, "require_private_knowledge_base", return_value=SimpleNamespace(documents=[])), patch.object(
+    with patch.object(knowledge_base.private_library, "lock_collection", return_value=SimpleNamespace(documents=[])), patch.object(
         knowledge_base, "get_minio_client", return_value=minio
     ), patch.object(
         knowledge_base.EmbeddingsFactory, "create"

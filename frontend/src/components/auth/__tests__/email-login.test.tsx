@@ -68,7 +68,7 @@ test('resend uses the same endpoint and resets the cooldown', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Resend code' }));
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Code sent again.'));
   expect(post).toHaveBeenCalledTimes(2);
-  expect(screen.getByRole('button', { name: /Resend in/ })).toBeDisabled();
+  expect(await screen.findByRole('button', { name: /Resend in/ })).toBeDisabled();
 });
 
 test('server rate limit disables sending until its Retry-After', async () => {

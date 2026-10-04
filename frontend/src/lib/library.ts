@@ -9,6 +9,7 @@ export interface LibraryTask {
 
 export interface LibraryDocument {
   id: number;
+  upload_id?: number | null;
   file_name: string;
   file_size: number;
   content_type: string;

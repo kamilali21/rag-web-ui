@@ -1,6 +1,8 @@
 import hashlib
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Literal
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
+from fastapi.responses import StreamingResponse
+from urllib.parse import quote
 from sqlalchemy.orm import Session
 from langchain_chroma import Chroma
 from sqlalchemy import text
@@ -31,6 +33,7 @@ from app.services.embedding.embedding_factory import EmbeddingsFactory
 from app.services.authorization import (
     private_kb_filter, require_private_document, require_private_knowledge_base,
 )
+from app.services import private_library
 
 router = APIRouter()
 
@@ -66,8 +69,9 @@ def create_knowledge_base(
 def get_knowledge_bases(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    skip: int = 0,
-    limit: int = 100
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    summary: bool = False,
 ) -> Any:
     """
     Retrieve knowledge bases.
@@ -75,11 +79,60 @@ def get_knowledge_bases(
     knowledge_bases = (
         db.query(KnowledgeBase)
         .filter(private_kb_filter(current_user))
+        .order_by(KnowledgeBase.id)
         .offset(skip)
         .limit(limit)
         .all()
     )
+    if summary:
+        return [dict(id=kb.id, name=kb.name, description=kb.description, user_id=kb.user_id,
+                     created_at=kb.created_at, updated_at=kb.updated_at, documents=[]) for kb in knowledge_bases]
     return knowledge_bases
+
+
+@router.get("/catalog")
+def private_catalog(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+    kb_id: int | None = None, search: str = Query("", max_length=255),
+    category: Literal["Papers", "Theses", "Reports"] | None = None,
+    status: Literal["pending", "processing", "completed", "failed", "unknown"] | None = None,
+    skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100),
+):
+    return private_library.catalog(db, current_user, kb_id=kb_id, search=search,
+        category=category, status=status, skip=skip, limit=limit)
+
+
+@router.delete("/{kb_id}/documents/{doc_id}")
+def delete_private_document(kb_id: int, doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    private_library.delete_item(db, current_user, kb_id, document_id=doc_id)
+    return {"message": "Document deleted"}
+
+
+@router.get("/{kb_id}/documents/{doc_id}/content")
+def private_content(kb_id: int, doc_id: int, inline: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    doc = require_private_document(db, current_user, kb_id, doc_id)
+    path = private_library.object_path(kb_id, doc.file_path)
+    try:
+        response = get_minio_client().get_object(settings.MINIO_BUCKET_NAME, path)
+    except Exception:
+        raise HTTPException(503, "Document content unavailable") from None
+    def chunks():
+        try:
+            yield from response.stream(64 * 1024)
+        finally:
+            response.close()
+            response.release_conn()
+    safe_inline = inline and doc.content_type in {"application/pdf", "text/plain", "text/markdown"}
+    media_type = "text/plain" if safe_inline and doc.content_type == "text/markdown" else doc.content_type
+    return StreamingResponse(chunks(), media_type=media_type, headers={
+        "Content-Disposition": f"{'inline' if safe_inline else 'attachment'}; filename*=UTF-8''{quote(doc.file_name, safe='')}",
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"})
+
+
+@router.delete("/{kb_id}/uploads/{upload_id}")
+def delete_private_upload(kb_id: int, upload_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    private_library.delete_item(db, current_user, kb_id, upload_id=upload_id)
+    return {"message": "Upload deleted"}
 
 @router.get("/{kb_id}", response_model=KnowledgeBaseResponse)
 def get_knowledge_base(
@@ -145,12 +198,12 @@ async def delete_knowledge_base(
     """
     logger = logging.getLogger(__name__)
     
-    kb = require_private_knowledge_base(db, current_user, kb_id)
-    
+    kb = private_library.lock_collection(db, current_user, kb_id)
+    if db.query(ProcessingTask.id).filter(ProcessingTask.knowledge_base_id == kb_id,
+            ProcessingTask.status.in_(["pending", "processing"])).first():
+        raise HTTPException(409, "Wait for processing to finish before deleting")
+
     try:
-        # Get all document file paths before deletion
-        document_paths = [doc.file_path for doc in kb.documents]
-        
         # Initialize services
         minio_client = get_minio_client()
         embeddings = EmbeddingsFactory.create()
@@ -185,22 +238,21 @@ async def delete_knowledge_base(
             cleanup_errors.append(f"Failed to clean up vector store: {str(e)}")
             logger.error(f"Vector store cleanup error for kb {kb_id}: {str(e)}")
         
+        if cleanup_errors:
+            private_library.mark_cleanup_failed(db, current_user, kb_id)
+            raise HTTPException(503, "Cleanup incomplete. Collection retained; retry deletion.")
         # Finally, delete database records in a single transaction
+        db.query(ProcessingTask).filter_by(knowledge_base_id=kb_id).delete(synchronize_session=False)
         db.delete(kb)
         db.commit()
         
-        # Report any cleanup errors in the response
-        if cleanup_errors:
-            return {
-                "message": "Knowledge base deleted with cleanup warnings",
-                "warnings": cleanup_errors
-            }
-        
         return {"message": "Knowledge base and all associated resources deleted successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
+        private_library.mark_cleanup_failed(db, current_user, kb_id)
         logger.error(f"Failed to delete knowledge base {kb_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete knowledge base: {str(e)}")
+        raise HTTPException(status_code=503, detail="Cleanup incomplete. Collection retained; retry deletion.") from None
 
 # Batch upload documents
 @router.post("/{kb_id}/documents/upload")
@@ -213,10 +265,14 @@ async def upload_kb_documents(
     """
     Upload multiple documents to MinIO.
     """
-    require_private_knowledge_base(db, current_user, kb_id)
+    private_library.lock_collection(db, current_user, kb_id)
     
     results = []
     for file in files:
+        # A filename is an object-path component, never a path supplied by a client.
+        if not file.filename or "/" in file.filename or "\\" in file.filename or len(file.filename) > 200:
+            raise HTTPException(400, "Use a filename without path separators, up to 200 characters")
+        private_library.lock_collection(db, current_user, kb_id)
         # 1. 计算文件 hash
         file_content = await file.read()
         file_hash = hashlib.sha256(file_content).hexdigest()
@@ -238,6 +294,9 @@ async def upload_kb_documents(
                 "skip_processing": True
             })
             continue
+        if (db.query(Document.id).filter_by(knowledge_base_id=kb_id, file_name=file.filename).first()
+                or db.query(DocumentUpload.id).filter_by(knowledge_base_id=kb_id, file_name=file.filename).first()):
+            raise HTTPException(409, "Filename already in use; remove its document or upload before uploading again")
         
         # 3. 上传到临时目录
         temp_path = f"kb_{kb_id}/temp/{file.filename}"
@@ -335,8 +394,8 @@ async def process_kb_documents(
     """
     start_time = time.time()
     
-    require_private_knowledge_base(db, current_user, kb_id)
-    
+    private_library.lock_collection(db, current_user, kb_id)
+
     task_info = []
     upload_ids = []
     
@@ -355,6 +414,8 @@ async def process_kb_documents(
     uploads_dict = {upload.id: upload for upload in uploads}
     if len(uploads_dict) != len(set(upload_ids)):
         raise HTTPException(status_code=400, detail="One or more upload IDs are invalid")
+    if len(upload_ids) != len(set(upload_ids)) or db.query(ProcessingTask.id).filter(ProcessingTask.document_upload_id.in_(upload_ids)).first():
+        raise HTTPException(409, "Upload already submitted; refresh its processing status")
     
     all_tasks = []
     for upload_id in upload_ids:
@@ -428,7 +489,8 @@ async def cleanup_temp_files(
     expired_time = datetime.utcnow() - timedelta(hours=24)
     # Added by ChatGPT: cleanup is never a cross-user administration shortcut.
     expired_uploads = db.query(DocumentUpload).join(KnowledgeBase).filter(
-        DocumentUpload.created_at < expired_time, private_kb_filter(current_user)
+        DocumentUpload.created_at < expired_time, private_kb_filter(current_user),
+        ~DocumentUpload.processing_tasks.any()
     ).all()
     
     minio_client = get_minio_client()

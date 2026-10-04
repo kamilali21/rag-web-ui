@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, FolderCog, Loader2, LockKeyhole, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, FolderCog, Loader2, LockKeyhole, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { documentSize, documentStatus, filenameFilters, LibraryCollection, LibraryDocument } from "@/lib/library";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,6 +40,16 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
   const [collectionName, setCollectionName] = useState("My documents");
   const [actionError, setActionError] = useState("");
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [visibleDocuments, setDocuments] = useState<LibraryDocument[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [appliedQuery, setAppliedQuery] = useState("");
+
+  useEffect(() => {
+    if (query === appliedQuery) return;
+    const timer = setTimeout(() => { setAppliedQuery(query); setPage(0); }, 250);
+    return () => clearTimeout(timer);
+  }, [query, appliedQuery]);
 
   // Added by ChatGPT: load every existing collection page; abort on navigation and refresh active jobs.
   useEffect(() => {
@@ -49,21 +59,24 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
     const fetchCollections = async () => {
       try {
         let result: LibraryCollection[] = [];
-        if (knowledgeBaseId !== undefined) {
-          result = [await api.get(`/api/knowledge-base/${knowledgeBaseId}`, { signal: controller.signal })];
-        } else {
           for (let skip = 0; ; skip += 100) {
-            const page: LibraryCollection[] = await api.get(`/api/knowledge-base?skip=${skip}&limit=100`, { signal: controller.signal });
-            result = result.concat(page);
-            if (page.length < 100) break;
+            const batch: LibraryCollection[] = await api.get(`/api/knowledge-base?summary=true&skip=${skip}&limit=100`, { signal: controller.signal });
+            result = result.concat(batch);
+            if (batch.length < 100) break;
           }
-        }
+        const params = new URLSearchParams({ skip: String(page * 20), limit: "20", search: appliedQuery });
+        const kb = knowledgeBaseId ?? (collectionFilter === "all" ? undefined : Number(collectionFilter));
+        if (kb !== undefined) params.set("kb_id", String(kb));
+        if (filter) params.set("category", filter);
+        if (processingFilter !== "all") params.set("status", processingFilter);
+        const catalog: { items: LibraryDocument[]; total: number; has_active_tasks: boolean } = await api.get(`/api/knowledge-base/catalog?${params}`, { signal: controller.signal });
         if (controller.signal.aborted) return;
         setCollections(result);
+        setDocuments(catalog.items);
+        setTotal(catalog.total);
+        if (page > 0 && catalog.items.length === 0) setPage(page - 1);
         setError("");
-        const active = result.some((collection) => collection.documents.some((document) =>
-          ["pending", "processing"].includes(documentStatus(document).status)));
-        if (active) timer = setTimeout(fetchCollections, 5000);
+        if (catalog.has_active_tasks) timer = setTimeout(fetchCollections, 5000);
       } catch (failure) {
         if (!controller.signal.aborted) setError(failure instanceof ApiError ? failure.message : "Unable to load your library.");
       } finally {
@@ -72,19 +85,10 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
     };
     void fetchCollections();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [knowledgeBaseId, refresh]);
+  }, [knowledgeBaseId, refresh, page, appliedQuery, filter, processingFilter, collectionFilter]);
 
-  const documents = useMemo(() => collections
-    .filter((collection) => collectionFilter === "all" || String(collection.id) === collectionFilter)
-    .flatMap((collection) => collection.documents), [collections, collectionFilter]);
-  const visibleDocuments = documents.filter((document) => {
-    const matchesSearch = document.file_name.toLowerCase().includes(query.trim().toLowerCase());
-    const shortcut = filenameFilters.find((item) => item.label === filter);
-    return matchesSearch && (!shortcut || shortcut.pattern.test(document.file_name)) &&
-      (processingFilter === "all" || documentStatus(document).status === processingFilter);
-  });
   const hasFilters = Boolean(query || filter || processingFilter !== "all");
-  const clearFilters = () => { setQuery(""); setFilter(null); setProcessingFilter("all"); };
+  const clearFilters = () => { setQuery(""); setAppliedQuery(""); setFilter(null); setProcessingFilter("all"); setPage(0); };
 
   // Added by ChatGPT: uploads still use the upstream upload/preview/process workflow and collection IDs.
   const openUpload = () => {
@@ -116,8 +120,24 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
       await api.delete(`/api/knowledge-base/${collection.id}`);
       setCollections((previous) => previous.filter((item) => item.id !== collection.id));
       setCollectionFilter("all");
+      setPage(0);
+      setRefresh(value => value + 1);
     } catch (failure) {
       setActionError(failure instanceof ApiError ? failure.message : "Could not delete collection.");
+    } finally { setDeleting(null); }
+  };
+
+  const deleteDocument = async (document: LibraryDocument) => {
+    if (!window.confirm(`Delete "${document.file_name}"? This cannot be undone.`)) return;
+    setDeleting(document.id);
+    setActionError("");
+    try {
+      const item = document.upload_id ? `uploads/${document.upload_id}` : `documents/${document.id}`;
+      await api.delete(`/api/knowledge-base/${document.knowledge_base_id}/${item}`);
+      setSelectedDocument(null);
+      setRefresh(value => value + 1);
+    } catch (failure) {
+      setActionError(failure instanceof ApiError ? failure.message : "Cleanup incomplete. Retry deletion.");
     } finally { setDeleting(null); }
   };
 
@@ -137,8 +157,8 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
       </div>
       <div className="library-filters" role="group" aria-label="Private library filters">
         {filenameFilters.map(({ label, description }) => <Button key={label} variant={filter === label ? "default" : "outline"} title={description}
-          aria-label={description} aria-pressed={filter === label} onClick={() => setFilter(filter === label ? null : label)}>{label}</Button>)}
-        <select className="library-select" aria-label="Processing status" value={processingFilter} onChange={event => setProcessingFilter(event.target.value)}>
+          aria-label={description} aria-pressed={filter === label} onClick={() => { setFilter(filter === label ? null : label); setPage(0); }}>{label}</Button>)}
+        <select className="library-select" aria-label="Processing status" value={processingFilter} onChange={event => { setProcessingFilter(event.target.value); setPage(0); }}>
           <option value="all">All processing states</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="completed">Ready</option><option value="failed">Failed</option><option value="unknown">Unknown</option>
         </select>
         {hasFilters && <button className="icon-button" aria-label="Clear filters" title="Clear filters" onClick={clearFilters}><X size={18} /></button>}
@@ -147,15 +167,18 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
       {/* Added by ChatGPT: real loading, failure, and empty states never substitute sample documents. */}
       {loading ? <div className="library-empty" role="status"><Loader2 className="animate-spin" /><p>Loading your library...</p></div> :
         error ? <div className="library-empty" role="alert"><h2>Library unavailable</h2><p>{error}</p><Button onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} /> Retry</Button></div> :
-        visibleDocuments.length > 0 ? <LibraryTable documents={visibleDocuments} onSelect={setSelectedDocument} /> :
+        visibleDocuments.length > 0 ? <LibraryTable documents={visibleDocuments} onSelect={document => { setActionError(""); setSelectedDocument(document); }} /> :
           <div className="library-empty"><BookOpen size={36} strokeWidth={1.4} /><h2>{hasFilters ? "No matching documents" : "No documents yet"}</h2>
             {hasFilters ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> :
             <Button onClick={openUpload}><Plus size={18} /> Add Documents</Button>}</div>}
 
       <div className="library-footer">
-        <p role="status" aria-live="polite">{loading || error ? "" : `${visibleDocuments.length} document${visibleDocuments.length === 1 ? "" : "s"}`}</p>
+        <p role="status" aria-live="polite">{loading || error ? "" : `${total} file${total === 1 ? "" : "s"}`}</p>
         <div className="library-tools">
-          {!knowledgeBaseId && collections.length > 1 && <select className="library-select" aria-label="Filter by collection" value={collectionFilter} onChange={(event) => setCollectionFilter(event.target.value)}>
+          <button className="icon-button" aria-label="Previous page" disabled={loading || page === 0} onClick={() => setPage(value => value - 1)}><ChevronLeft size={18} /></button>
+          <span>Page {page + 1}</span>
+          <button className="icon-button" aria-label="Next page" disabled={loading || (page + 1) * 20 >= total} onClick={() => setPage(value => value + 1)}><ChevronRight size={18} /></button>
+          {!knowledgeBaseId && collections.length > 1 && <select className="library-select" aria-label="Filter by collection" value={collectionFilter} onChange={(event) => { setCollectionFilter(event.target.value); setPage(0); }}>
             <option value="all">All collections</option>{collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
           </select>}
           {knowledgeBaseId ? <Link href="/dashboard/knowledge" className="text-sm underline underline-offset-4">All documents</Link> :
@@ -187,7 +210,7 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
         <DialogContent>
           <DialogHeader><DialogTitle>Collections</DialogTitle><DialogDescription>Your private knowledge bases.</DialogDescription></DialogHeader>
           <div>{collections.map((collection) => <div className="collection-row" key={collection.id}>
-            <div><Link className="font-medium break-words hover:underline" href={`/dashboard/knowledge/${collection.id}`}>{collection.name}</Link><p>{collection.documents.length} documents</p></div>
+            <div><Link className="font-medium break-words hover:underline" href={`/dashboard/knowledge/${collection.id}`}>{collection.name}</Link></div>
             <Link href={`/dashboard/knowledge/${collection.id}`} className="icon-button" title={`Open ${collection.name}`} aria-label={`Open ${collection.name}`}><Settings size={18} /></Link>
             <Link href={`/dashboard/test-retrieval/${collection.id}`} className="icon-button" title={`Test retrieval in ${collection.name}`} aria-label={`Test retrieval in ${collection.name}`}><Search size={18} /></Link>
             <button className="icon-button text-destructive" title={`Delete ${collection.name}`} aria-label={`Delete ${collection.name}`} disabled={deleting !== null} onClick={() => deleteCollection(collection)}>{deleting === collection.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}</button>
@@ -204,6 +227,12 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
           {selectedDocument && <>
             <dl className="document-details"><dt>Size</dt><dd>{documentSize(selectedDocument.file_size)}</dd><dt>Status</dt><dd>{documentStatus(selectedDocument).label}</dd><dt>Collection</dt><dd>{collections.find((collection) => collection.id === selectedDocument.knowledge_base_id)?.name}</dd></dl>
             <Button asChild><Link href={`/dashboard/knowledge/${selectedDocument.knowledge_base_id}`} onClick={() => setSelectedDocument(null)}>Open collection</Link></Button>
+            {!selectedDocument.upload_id && <Button asChild variant="outline"><a href={`/api/knowledge-base/${selectedDocument.knowledge_base_id}/documents/${selectedDocument.id}/content?inline=true`} target="_blank" rel="noopener noreferrer">Open document</a></Button>}
+            {selectedDocument.upload_id && <p className="text-sm text-muted-foreground">This upload has not produced a document yet. If processing failed, delete it and upload the file again.</p>}
+            <Button variant="destructive" disabled={deleting !== null || ["pending", "processing"].includes(documentStatus(selectedDocument).status) && !selectedDocument.upload_id} onClick={() => deleteDocument(selectedDocument)}>
+              <Trash2 size={16} /> {deleting !== null ? "Deleting..." : "Delete file"}
+            </Button>
+            {actionError && <p role="alert" className="text-destructive">{actionError}</p>}
           </>}
         </DialogContent>
       </Dialog>
