@@ -66,6 +66,10 @@ class Store:
     def similarity_search_with_score(self, query, k):
         return (self.extra + [(doc, 0.1) for doc in self.documents.values()])[:k]
 
+    def search_permitted(self, query, document_ids, kb_id, k=4):
+        return [(doc, score) for doc, score in self.similarity_search_with_score(query, k)
+                if doc.metadata.get("document_id") in document_ids and doc.metadata.get("kb_id") == kb_id]
+
 
 @pytest.fixture
 def corpus(world, monkeypatch):

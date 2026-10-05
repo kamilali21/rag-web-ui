@@ -25,14 +25,12 @@ def test_chat_retrieves_all_selected_collections_and_persists_the_stream():
     db.query.return_value.filter.return_value.all.side_effect = [
         [object()], [object()]
     ]
-    stores = []
+    documents = []
     for kb_id in [11, 12]:
-        store = MagicMock()
-        store.as_retriever.return_value = FixtureRetriever(documents=[Document(
+        documents.append(Document(
             page_content=f"Irrigation experiment from collection {kb_id}.",
             metadata={"kb_id": kb_id, "document_id": kb_id, "page": 0},
-        )])
-        stores.append(store)
+        ))
     messages = {"messages": [{"role": "user", "content": "Compare irrigation."}]}
 
     async def collect():
@@ -43,8 +41,8 @@ def test_chat_retrieves_all_selected_collections_and_persists_the_stream():
     # Added by ChatGPT: isolate this RAG contract; Phase 2 tests exercise real authorization separately.
     with patch.object(chat_service, "require_chat_sources", return_value=[
         SimpleNamespace(id=11), SimpleNamespace(id=12)
-    ]), patch.object(chat_service.EmbeddingsFactory, "create"), patch.object(
-        chat_service.VectorStoreFactory, "create", side_effect=stores
+    ]), patch.object(chat_service, "resolve_scope", return_value={11: [11], 12: [12]}), patch.object(
+        chat_service, "PrivateScopeRetriever", return_value=FixtureRetriever(documents=documents)
     ), patch.object(chat_service.LLMFactory, "create", return_value=FakeListChatModel(
         responses=["Irrigation results differ. [citation:1][citation:2]"]
     )):

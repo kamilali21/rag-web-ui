@@ -5,6 +5,13 @@ from langchain_core.embeddings import Embeddings
 
 class BaseVectorStore(ABC):
     """Abstract base class for vector store implementations"""
+
+    def search_permitted(self, query: str, document_ids: List[int], kb_id: int, k: int = 4):
+        """Search only these SQL-authorized documents; smaller scores rank first.
+
+        Unsupported adapters must fail closed, never fall back to an unfiltered query.
+        """
+        raise NotImplementedError("This vector backend does not support authorized search")
     
     @abstractmethod
     def __init__(self, collection_name: str, embedding_function: Embeddings, **kwargs):
@@ -39,4 +46,4 @@ class BaseVectorStore(ABC):
     @abstractmethod
     def delete_collection(self) -> None:
         """Delete the entire collection"""
-        pass 
+        pass

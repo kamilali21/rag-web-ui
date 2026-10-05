@@ -569,30 +569,6 @@ async def test_retrieval(
     """
     Test retrieval quality for a given query against a knowledge base.
     """
-    try:
-        require_private_knowledge_base(db, current_user, request.kb_id)
-        
-        embeddings = EmbeddingsFactory.create()
-        
-        vector_store = VectorStoreFactory.create(
-            store_type=settings.VECTOR_STORE_TYPE,
-            collection_name=f"kb_{request.kb_id}",
-            embedding_function=embeddings,
-        )
-        
-        results = vector_store.similarity_search_with_score(request.query, k=request.top_k)
-        
-        response = []
-        for doc, score in results:
-            response.append({
-                "content": doc.page_content,
-                "metadata": doc.metadata,
-                "score": float(score)
-            })
-            
-        return {"results": response}
-        
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Retrieval unavailable")
+    from app.services.retrieval_scope import search_scope
+    return {"results": search_scope(db, current_user, "private", request.query, request.top_k,
+                                    knowledge_base_ids=[request.kb_id])}

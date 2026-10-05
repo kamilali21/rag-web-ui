@@ -13,7 +13,28 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 9 Scope-aware Retrieval - First Increment
+## Current Gate: Phase 9 Complete; Phase 10 Research Assistant Next
+
+### Phase 9 completion - 5 October 2026
+
+- Public/Private/Both searches now constrain native vector queries to SQL-permitted
+  documents, then recheck authorization/readiness/publication in a fresh snapshot.
+  Existing public queries, private/API-key retrieval and private chat share it.
+- Full backend suite: 220 passed, 39 skips; final focused Phase 9 suite: 26 passed;
+  disposable MySQL authorization/public-corpus/retrieval gate: 80 passed.
+- The 4 October live gate verified both users/all scopes, hidden drafts/foreign
+  files, publication withdrawal, PDF download, real cited streaming and saved-chat
+  reopen. Container recreation lost its final receipt; exact fixture/session
+  removal was independently confirmed afterward.
+- The 5 October repeat was interrupted by a stalled cold model download. Its
+  exact test fixture was recovered and deleted; all three original documents,
+  original SQL rows and MinIO/Chroma fingerprints are unchanged, sessions removed,
+  revision `riq_004`. The failed repeat and successful cleanup receipts are kept.
+- Runtime model recovery is ongoing; Phase 10 needs fresh live acceptance before
+  its checkpoint. Browser tools still expose no connected browser.
+- Details and recovery evidence: `docs/phase9-scope-aware-retrieval.md`.
+- Next existing-plan task: reuse chat for Research Assistant source scopes and
+  validate citations against deterministic SQL-backed evidence IDs.
 
 ### Phase 9 started - 4 October 2026
 

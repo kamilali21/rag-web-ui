@@ -50,6 +50,13 @@ class ChromaVectorStore(BaseVectorStore):
         """Search for similar documents in Chroma with score"""
         return self._store.similarity_search_with_score(query, k=k, **kwargs)
 
+    def search_permitted(self, query: str, document_ids: List[int], kb_id: int, k: int = 4):
+        if not document_ids:
+            return []
+        return self.similarity_search_with_score(query, k=k, filter={"$and": [
+            {"kb_id": kb_id}, {"document_id": {"$in": document_ids}},
+        ]})
+
     def delete_collection(self) -> None:
         """Delete the entire collection"""
         self._store._client.delete_collection(self._store._collection.name)

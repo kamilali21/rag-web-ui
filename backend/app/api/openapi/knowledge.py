@@ -25,31 +25,6 @@ def query_knowledge_base(
     """
     Query a specific knowledge base using API key authentication
     """
-    try:
-        # Added by ChatGPT: API keys obey the same private ownership policy as JWTs.
-        require_private_knowledge_base(db, current_user, knowledge_base_id)
-        
-        embeddings = EmbeddingsFactory.create()
-        
-        vector_store = VectorStoreFactory.create(
-            store_type=settings.VECTOR_STORE_TYPE,
-            collection_name=f"kb_{knowledge_base_id}",
-            embedding_function=embeddings,
-        )
-        
-        results = vector_store.similarity_search_with_score(query, k=top_k)
-        
-        response = []
-        for doc, score in results:
-            response.append({
-                "content": doc.page_content,
-                "metadata": doc.metadata,
-                "score": float(score)
-            })
-            
-        return {"results": response}
-        
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Retrieval unavailable")
+    from app.services.retrieval_scope import search_scope
+    return {"results": search_scope(db, current_user, "private", query, top_k,
+                                    knowledge_base_ids=[knowledge_base_id])}

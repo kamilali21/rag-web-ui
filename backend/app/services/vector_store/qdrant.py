@@ -38,6 +38,15 @@ class QdrantStore(BaseVectorStore):
         """Search for similar documents in Qdrant with score"""
         return self._store.similarity_search_with_score(query, k=k, **kwargs)
 
+    def search_permitted(self, query: str, document_ids: List[int], kb_id: int, k: int = 4):
+        if not document_ids:
+            return []
+        from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+        condition = Filter(must=[FieldCondition(key="metadata.kb_id", match=MatchValue(value=kb_id)),
+                                FieldCondition(key="metadata.document_id", match=MatchAny(any=document_ids))])
+        # This adapter uses Qdrant's default cosine similarity: higher is better.
+        return [(doc, -float(score)) for doc, score in self.similarity_search_with_score(query, k=k, filter=condition)]
+
     def delete_collection(self) -> None:
         """Delete the entire collection"""
-        self._store._client.delete_collection(self._store._collection_name) 
+        self._store._client.delete_collection(self._store._collection_name)

@@ -331,11 +331,13 @@ def test_api_key_retrieval_and_key_management_preserve_ownership(world):
 def test_owner_access_and_api_key_retrieval_still_work(world):
     w = world
     from app.api.openapi import knowledge
+    w.db.add(ProcessingTask(knowledge_base_id=w.alice_kb.id, document_id=w.alice_doc.id, status="completed"))
+    w.db.commit()
     assert w.client.get(f"/api/knowledge-base/{w.alice_kb.id}", headers=w.headers(w.alice)).status_code == 200
     assert w.client.get(f"/api/knowledge-base/{w.alice_kb.id}/documents/{w.alice_doc.id}", headers=w.headers(w.alice)).status_code == 200
     assert w.client.get(f"/api/chat/{w.chat.id}", headers=w.headers(w.alice)).status_code == 200
     with patch.object(knowledge.EmbeddingsFactory, "create"), patch.object(knowledge.VectorStoreFactory, "create") as store:
-        store.return_value.similarity_search_with_score.return_value = []
+        store.return_value.search_permitted.return_value = []
         result = w.client.get(f"/openapi/knowledge/{w.alice_kb.id}/query", params={"query": "own research"}, headers={"X-API-Key": "phase2-alice"})
         assert result.status_code == 200
         store.assert_called_once()
@@ -355,7 +357,7 @@ def test_authorized_http_chat_streams_and_persists_citations_from_both_collectio
     # only the embedding/vector/LLM providers are replaced with deterministic fixtures.
     from langchain_core.documents import Document as Evidence
     from langchain_core.language_models.fake_chat_models import FakeListChatModel
-    from tests.test_baseline_regressions import FixtureRetriever
+    from app.models.knowledge import DocumentChunk
     from app.services import chat_service
     w = world
     second = w.kb(w.alice, "Second private collection")
@@ -364,10 +366,16 @@ def test_authorized_http_chat_streams_and_persists_citations_from_both_collectio
     stores = []
     for kb, doc in [(w.alice_kb, w.alice_doc), (second, second_doc)]:
         store = MagicMock()
-        store.as_retriever.return_value = FixtureRetriever(documents=[Evidence(
-            page_content="Synthetic irrigation evidence", metadata={"kb_id": kb.id, "document_id": doc.id, "page": 0}
-        )])
+        chunk_id = f"phase9-{doc.id}"
+        w.db.add(ProcessingTask(knowledge_base_id=kb.id, document_id=doc.id, status="completed"))
+        w.db.add(DocumentChunk(id=chunk_id, kb_id=kb.id, document_id=doc.id,
+            file_name=doc.file_name, hash=chunk_id,
+            chunk_metadata={"page_content": "Synthetic irrigation evidence", "page": 0}))
+        store.search_permitted.return_value = [(Evidence(
+            page_content="Untrusted provider text", metadata={"chunk_id": chunk_id, "kb_id": kb.id, "document_id": doc.id}
+        ), 0.1)]
         stores.append(store)
+    w.db.commit()
     headers = w.headers(w.alice)
     created = w.client.post("/api/chat/", json={"title": "Grounded chat", "knowledge_base_ids": [w.alice_kb.id, second.id]}, headers=headers)
     assert created.status_code == 200

@@ -1,19 +1,23 @@
 """Phase 9: resolve permitted sources before touching vector stores or an LLM."""
 from typing import Literal
+import math
 
 from fastapi import HTTPException
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import AcademicDocumentMetadata, Document, KnowledgeBase, User
-from app.models.knowledge import ProcessingTask
-from app.services.authorization import private_kb_filter, require_active_user
+from app.models.knowledge import ProcessingTask, DocumentChunk
+from app.services.authorization import private_kb_filter, require_active_user, require_private_knowledge_bases
 from app.services.public_corpus import get_corpus
+from app.core.config import settings
+from app.services.embedding.embedding_factory import EmbeddingsFactory
+from app.services.vector_store import VectorStoreFactory
 
 SourceScope = Literal["public", "private", "both"]
 
 
-def resolve_scope(db: Session, actor: User, scope: SourceScope) -> dict[int, list[int]]:
+def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_base_ids: list[int] | None = None) -> dict[int, list[int]]:
     """Return KB -> ready document IDs, using SQL rather than client/vector claims.
 
     Empty means no permitted sources; callers must not fall back to an unfiltered
@@ -23,6 +27,10 @@ def resolve_scope(db: Session, actor: User, scope: SourceScope) -> dict[int, lis
     require_active_user(actor)
     if scope not in {"public", "private", "both"}:
         raise HTTPException(422, "Scope must be public, private or both")
+    if knowledge_base_ids is not None:
+        if scope != "private":
+            raise HTTPException(422, "Collection selection applies only to private sources")
+        require_private_knowledge_bases(db, actor, knowledge_base_ids)
     permitted = []
     if scope in {"private", "both"}:
         permitted.append(private_kb_filter(actor))
@@ -35,10 +43,70 @@ def resolve_scope(db: Session, actor: User, scope: SourceScope) -> dict[int, lis
         ProcessingTask.document_id == Document.id,
         ProcessingTask.knowledge_base_id == Document.knowledge_base_id,
     ).order_by(ProcessingTask.id.desc()).limit(1).scalar_subquery()
-    rows = db.query(Document.knowledge_base_id, Document.id).join(KnowledgeBase).outerjoin(
+    query = db.query(Document.knowledge_base_id, Document.id).join(KnowledgeBase).outerjoin(
         AcademicDocumentMetadata, AcademicDocumentMetadata.document_id == Document.id,
-    ).filter(or_(*permitted), latest_status == "completed").order_by(Document.knowledge_base_id, Document.id).all()
+    ).filter(or_(*permitted), latest_status == "completed")
+    if knowledge_base_ids is not None:
+        query = query.filter(Document.knowledge_base_id.in_(knowledge_base_ids))
+    rows = query.order_by(Document.knowledge_base_id, Document.id).all()
     sources: dict[int, list[int]] = {}
     for kb_id, document_id in rows:
         sources.setdefault(kb_id, []).append(document_id)
     return sources
+
+
+def search_scope(db: Session, actor: User, scope: SourceScope, query: str, top_k: int = 5,
+                 *, knowledge_base_ids: list[int] | None = None):
+    if not query.strip() or len(query) > 4000 or not 1 <= top_k <= 20:
+        raise HTTPException(422, "Use a non-empty query up to 4000 characters and top_k between 1 and 20")
+    require_active_user(actor)
+    actor_id = actor.id
+    sources = resolve_scope(db, actor, scope, knowledge_base_ids=knowledge_base_ids)
+    if not sources:
+        return []
+    db.rollback()  # Release the read snapshot before the external requests.
+    candidates = []
+    candidate_limit = min(top_k * 5, 100)
+    try:
+        embeddings = EmbeddingsFactory.create()
+        for kb_id, document_ids in sources.items():
+            store = VectorStoreFactory.create(store_type=settings.VECTOR_STORE_TYPE,
+                collection_name=f"kb_{kb_id}", embedding_function=embeddings)
+            # Bound each provider filter and keep a bounded candidate pool across collections.
+            for offset in range(0, len(document_ids), 500):
+                batch = document_ids[offset:offset + 500]
+                for candidate, score in store.search_permitted(query, batch, kb_id, k=candidate_limit):
+                    chunk_id = candidate.metadata.get("chunk_id")
+                    if isinstance(chunk_id, str) and math.isfinite(float(score)):
+                        candidates.append((float(score), kb_id, chunk_id))
+                candidates = sorted(set(candidates))[:candidate_limit]
+    except Exception:
+        raise HTTPException(503, "Scoped retrieval unavailable") from None
+    # A fresh SQL read is essential under MySQL REPEATABLE READ after publication/owner changes.
+    db.rollback()
+    actor = db.get(User, actor_id)
+    require_active_user(actor)
+    permitted = resolve_scope(db, actor, scope, knowledge_base_ids=knowledge_base_ids)
+    ids = [chunk_id for _, _, chunk_id in candidates]
+    rows = db.query(DocumentChunk, Document).join(Document, Document.id == DocumentChunk.document_id).filter(
+        DocumentChunk.id.in_(ids), DocumentChunk.kb_id == Document.knowledge_base_id).all()
+    trusted = {(chunk.kb_id, chunk.id): (chunk, doc) for chunk, doc in rows
+               if doc.id in permitted.get(chunk.kb_id, [])}
+    results, seen = [], set()
+    for score, kb_id, chunk_id in candidates:
+        key = (kb_id, chunk_id)
+        if key not in trusted or key in seen:
+            continue
+        chunk, document = trusted[key]
+        metadata = chunk.chunk_metadata or {}
+        content = metadata.get("page_content")
+        if not isinstance(content, str) or not content:
+            continue
+        results.append({"content": content, "score": score, "metadata": {
+            "chunk_id": chunk_id, "document_id": document.id, "kb_id": kb_id,
+            "scope": document.knowledge_base.scope, "file_name": document.file_name,
+            "page": metadata.get("page")}})
+        seen.add(key)
+        if len(results) == top_k:
+            break
+    return results

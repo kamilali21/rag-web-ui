@@ -1,7 +1,7 @@
 import json
 import base64
 import logging
-from typing import List, AsyncGenerator
+from typing import List, AsyncGenerator, Any
 from sqlalchemy.orm import Session
 from langchain_openai import ChatOpenAI
 from langchain.chains import create_history_aware_retriever
@@ -11,15 +11,31 @@ from langchain_core.messages import HumanMessage, AIMessage
 from app.core.config import settings
 from app.models.chat import Message
 from app.models.knowledge import Document
-from langchain.retrievers.merger_retriever import MergerRetriever
+from langchain_core.retrievers import BaseRetriever
 from app.services.vector_store import VectorStoreFactory
 from app.services.embedding.embedding_factory import EmbeddingsFactory
 from app.services.llm.llm_factory import LLMFactory
 from app.models.user import User
 from app.services.authorization import require_chat_sources
+from app.services.retrieval_scope import resolve_scope, search_scope
+from langchain_core.documents import Document as Evidence
 
 # Added by ChatGPT: retrieved private text must not be printed by global chain debugging.
 logger = logging.getLogger(__name__)
+
+class PrivateScopeRetriever(BaseRetriever):
+    db: Any
+    actor: Any
+    knowledge_base_ids: List[int]
+    chat_id: int
+
+    def _get_relevant_documents(self, query, *, run_manager):
+        require_chat_sources(self.db, self.actor, self.chat_id, self.knowledge_base_ids)
+        rows = search_scope(self.db, self.actor, "private", query,
+                            min(4 * len(self.knowledge_base_ids), 20),
+                            knowledge_base_ids=self.knowledge_base_ids)
+        require_chat_sources(self.db, self.actor, self.chat_id, self.knowledge_base_ids)
+        return [Evidence(page_content=row["content"], metadata=row["metadata"]) for row in rows]
 
 async def generate_response(
     query: str,
@@ -50,23 +66,8 @@ async def generate_response(
         db.add(bot_message)
         db.commit()
         
-        # Initialize embeddings
-        embeddings = EmbeddingsFactory.create()
-        
-        # Create a vector store for each knowledge base
-        vector_stores = []
-        for kb in knowledge_bases:
-            documents = db.query(Document).filter(Document.knowledge_base_id == kb.id).all()
-            if documents:
-                # Use the factory to create the appropriate vector store
-                vector_store = VectorStoreFactory.create(
-                    store_type=settings.VECTOR_STORE_TYPE,  # 'chroma' or other supported types
-                    collection_name=f"kb_{kb.id}",
-                    embedding_function=embeddings,
-                )
-                vector_stores.append(vector_store)
-        
-        if not vector_stores:
+        sources = resolve_scope(db, current_user, 'private', knowledge_base_ids=knowledge_base_ids)
+        if not sources:
             error_msg = "I don't have any knowledge base to help answer your question."
             yield f'0:"{error_msg}"\n'
             yield 'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
@@ -74,10 +75,8 @@ async def generate_response(
             db.commit()
             return
         
-        # Added by ChatGPT: reuse LangChain's merger so all selected collections contribute.
-        retrievers = [store.as_retriever() for store in vector_stores]
-        retriever = retrievers[0] if len(retrievers) == 1 else MergerRetriever(retrievers=retrievers)
-        
+        retriever = PrivateScopeRetriever(db=db, actor=current_user, chat_id=chat_id, knowledge_base_ids=knowledge_base_ids)
+
         # Initialize the language model
         llm = LLMFactory.create()
         
@@ -160,6 +159,13 @@ async def generate_response(
             "input": query,
             "chat_history": chat_history
         })
+        if not retrieved_docs:
+            message = "No permitted evidence was found for this question."
+            bot_message.content = message
+            db.commit()
+            yield f'0:{json.dumps(message)}\n'
+            yield 'd:{"finishReason":"stop"}\n'
+            return
 
         # 2. Send retrieved context to the frontend before the LLM response.
         serializable_context = []

@@ -490,38 +490,5 @@ def delete_upload(db: Session, actor: User, task_id: int):
 
 
 def query_corpus(db: Session, actor: User, query: str, top_k: int):
-    corpus = get_corpus(db, actor)
-    if not query.strip() or len(query) > 4000 or not 1 <= top_k <= 20:
-        raise HTTPException(400, "Use a non-empty query up to 4000 characters and top_k between 1 and 20")
-    if document_query(db, corpus.id).first() is None:
-        return []
-    db.commit()  # End the snapshot before an external vector request.
-    try:
-        candidates = _store(corpus.id).similarity_search_with_score(query, k=min(top_k * 5, 100))
-    except Exception:
-        raise HTTPException(503, "Corpus retrieval unavailable") from None
-    get_corpus(db, actor)  # Recheck ownership/scope after the external call.
-    # SQL, not vector metadata, is the final authority after retrieval. Bound this check by k.
-    ids = [doc.metadata.get("chunk_id") for doc, _ in candidates if isinstance(doc.metadata.get("chunk_id"), str)]
-    rows = db.query(DocumentChunk, Document).join(Document, Document.id == DocumentChunk.document_id).join(
-        AcademicDocumentMetadata, AcademicDocumentMetadata.document_id == Document.id).filter(
-        DocumentChunk.id.in_(ids), DocumentChunk.kb_id == corpus.id, Document.knowledge_base_id == corpus.id,
-        AcademicDocumentMetadata.publication_status == "published").all()
-    permitted = {chunk.id: (chunk, document) for chunk, document in rows}
-    results, seen = [], set()
-    for candidate, score in candidates:
-        chunk_id = candidate.metadata.get("chunk_id")
-        if not isinstance(chunk_id, str) or chunk_id not in permitted or chunk_id in seen or not math.isfinite(float(score)):
-            continue
-        chunk, document = permitted[chunk_id]
-        metadata = chunk.chunk_metadata or {}
-        content = metadata.get("page_content")
-        if not isinstance(content, str) or not content:
-            continue
-        results.append({"content": content, "score": float(score), "metadata": {
-            "chunk_id": chunk.id, "document_id": document.id, "kb_id": corpus.id,
-            "file_name": document.file_name, "page": metadata.get("page")}})
-        seen.add(chunk_id)
-        if len(results) == top_k:
-            break
-    return results
+    from app.services.retrieval_scope import search_scope
+    return search_scope(db, actor, "public", query, top_k)
