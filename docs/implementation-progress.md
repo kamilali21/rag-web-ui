@@ -13,7 +13,20 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 10 Complete — Phase 11 Next
+## Current Gate: Phase 11 Exact Document Retrieval — First Service Increment
+
+### Phase 11 started — 6 October 2026
+
+- Phase 10 completion checkpoint: `903619e`, tag
+  `researchiq-phase10-verified-20261006`.
+- Added exact document-ID selection to the existing permission-scoped retrieval
+  service. Missing/foreign/not-ready selections fail before vector search;
+  selected IDs constrain both native filters and fresh SQL evidence checks.
+- Combined Phase 9/10/11 regression: 72 passed, 1 MySQL-only skip; MySQL: 73 passed. Read-only
+  live checks returned only the selected private/public document's chunks.
+- This is an incremental service checkpoint. Next: authenticated API/schema
+  integration and acceptance for exact selection, before closing Phase 11.
+- Details: `docs/phase11-document-scoped-retrieval.md`.
 
 ### Phase 10 completion — 6 October 2026
 

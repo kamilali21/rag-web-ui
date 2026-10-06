@@ -1,4 +1,4 @@
-"""Phase 9: resolve permitted sources before touching vector stores or an LLM."""
+"""Permission-scoped retrieval with optional exact Phase 11 document selection."""
 from typing import Literal
 import math
 
@@ -17,16 +17,21 @@ from app.services.vector_store import VectorStoreFactory
 SourceScope = Literal["public", "private", "both"]
 
 
-def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_base_ids: list[int] | None = None) -> dict[int, list[int]]:
+def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_base_ids: list[int] | None = None,
+                  document_ids: list[int] | None = None) -> dict[int, list[int]]:
     """Return KB -> ready document IDs, using SQL rather than client/vector claims.
 
     Empty means no permitted sources; callers must not fall back to an unfiltered
     search. Re-resolve before exposing evidence if an external request intervenes.
     Private collection selections also apply inside Both conversations.
+    Exact document selections reject the entire request if any ID is unavailable.
     """
     require_active_user(actor)
     if scope not in {"public", "private", "both"}:
         raise HTTPException(422, "Scope must be public, private or both")
+    if document_ids is not None and (not isinstance(document_ids, list) or not 1 <= len(document_ids) <= 20
+            or any(type(value) is not int or value <= 0 for value in document_ids)):
+        raise HTTPException(422, "Select between 1 and 20 positive integer document IDs")
     if knowledge_base_ids is not None:
         if scope == "public":
             raise HTTPException(422, "Collection selection applies only to private sources")
@@ -49,7 +54,11 @@ def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_bas
     query = db.query(Document.knowledge_base_id, Document.id).join(KnowledgeBase).outerjoin(
         AcademicDocumentMetadata, AcademicDocumentMetadata.document_id == Document.id,
     ).filter(or_(*permitted), latest_status == "completed")
+    if document_ids is not None:
+        query = query.filter(Document.id.in_(document_ids))
     rows = query.order_by(Document.knowledge_base_id, Document.id).all()
+    if document_ids is not None and len(rows) != len(set(document_ids)):
+        raise HTTPException(404, "Selected documents are unavailable")
     sources: dict[int, list[int]] = {}
     for kb_id, document_id in rows:
         sources.setdefault(kb_id, []).append(document_id)
@@ -57,12 +66,12 @@ def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_bas
 
 
 def search_scope(db: Session, actor: User, scope: SourceScope, query: str, top_k: int = 5,
-                 *, knowledge_base_ids: list[int] | None = None):
+                 *, knowledge_base_ids: list[int] | None = None, document_ids: list[int] | None = None):
     if not query.strip() or len(query) > 4000 or not 1 <= top_k <= 20:
         raise HTTPException(422, "Use a non-empty query up to 4000 characters and top_k between 1 and 20")
     require_active_user(actor)
     actor_id = actor.id
-    sources = resolve_scope(db, actor, scope, knowledge_base_ids=knowledge_base_ids)
+    sources = resolve_scope(db, actor, scope, knowledge_base_ids=knowledge_base_ids, document_ids=document_ids)
     if not sources:
         return []
     db.rollback()  # Release the read snapshot before the external requests.
@@ -70,12 +79,12 @@ def search_scope(db: Session, actor: User, scope: SourceScope, query: str, top_k
     candidate_limit = min(top_k * 5, 100)
     try:
         embeddings = EmbeddingsFactory.create()
-        for kb_id, document_ids in sources.items():
+        for kb_id, permitted_ids in sources.items():
             store = VectorStoreFactory.create(store_type=settings.VECTOR_STORE_TYPE,
                 collection_name=f"kb_{kb_id}", embedding_function=embeddings)
             # Bound each provider filter and keep a bounded candidate pool across collections.
-            for offset in range(0, len(document_ids), 500):
-                batch = document_ids[offset:offset + 500]
+            for offset in range(0, len(permitted_ids), 500):
+                batch = permitted_ids[offset:offset + 500]
                 for candidate, score in store.search_permitted(query, batch, kb_id, k=candidate_limit):
                     chunk_id = candidate.metadata.get("chunk_id")
                     if isinstance(chunk_id, str) and math.isfinite(float(score)):
@@ -87,7 +96,7 @@ def search_scope(db: Session, actor: User, scope: SourceScope, query: str, top_k
     db.rollback()
     actor = db.get(User, actor_id)
     require_active_user(actor)
-    permitted = resolve_scope(db, actor, scope, knowledge_base_ids=knowledge_base_ids)
+    permitted = resolve_scope(db, actor, scope, knowledge_base_ids=knowledge_base_ids, document_ids=document_ids)
     ids = [chunk_id for _, _, chunk_id in candidates]
     rows = db.query(DocumentChunk, Document).join(Document, Document.id == DocumentChunk.document_id).filter(
         DocumentChunk.id.in_(ids), DocumentChunk.kb_id == Document.knowledge_base_id).all()
@@ -117,3 +126,11 @@ def search_scope(db: Session, actor: User, scope: SourceScope, query: str, top_k
         if len(results) == top_k:
             break
     return results
+
+
+def search_documents(db: Session, actor: User, document_ids: list[int], query: str,
+                     top_k: int = 5, *, scope: SourceScope = "both"):
+    """Exact selection for research workflows; never fall back to the whole scope."""
+    if document_ids is None:
+        raise HTTPException(422, "Select document IDs before retrieving evidence")
+    return search_scope(db, actor, scope, query, top_k, document_ids=document_ids)
