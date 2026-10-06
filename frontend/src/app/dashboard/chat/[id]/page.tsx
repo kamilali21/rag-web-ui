@@ -28,6 +28,7 @@ interface Chat {
   id: number;
   title: string;
   messages: ChatMessage[];
+  source_scope: "public" | "private" | "both";
 }
 
 interface Citation {
@@ -48,6 +49,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [chat, setChat] = useState<Chat | null>(null);
 
   const {
     messages,
@@ -57,6 +59,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     handleSubmit,
     isLoading,
     setMessages,
+    error,
   } = useChat({
     api: `/api/chat/${params.id}/messages`,
     // Added by ChatGPT: current credentials without changing the citation stream.
@@ -79,6 +82,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const fetchChat = async () => {
     try {
       const data: Chat = await api.get(`/api/chat/${params.id}`);
+      setChat(data);
       // Added by ChatGPT: saved and live messages use the same decoding path below.
       const formattedMessages = data.messages.map((msg) => ({
         id: msg.id.toString(), role: msg.role, content: msg.content,
@@ -111,6 +115,11 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-[calc(100vh-5rem)] relative">
+        <header className="px-4 py-3 border-b shrink-0">
+          <h1 className="text-xl font-semibold">{chat?.title || "Research Assistant"}</h1>
+          {chat && <p className="text-sm text-muted-foreground">Sources: {chat.source_scope === "both" ? "Public + Private" : chat.source_scope === "public" ? "Public Library" : "Private Library"}</p>}
+          {error && <p role="alert" className="text-sm text-destructive mt-2">{error.message || "The answer could not be completed. Please try again."}</p>}
+        </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-[80px]">
           {processedMessages.map((message) =>
             message.role === "assistant" ? (
@@ -170,10 +179,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             value={input}
             onChange={handleInputChange}
             placeholder="Type your message..."
+            aria-label="Research question"
+            maxLength={4000}
             className="flex-1 min-w-0 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
           <button
             type="submit"
+            aria-label="Send question"
             disabled={isLoading || !input.trim()}
             className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
           >

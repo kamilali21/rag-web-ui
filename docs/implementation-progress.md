@@ -13,7 +13,24 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 9 Complete; Phase 10 Research Assistant Next
+## Current Gate: Phase 10 Complete — Phase 11 Next
+
+### Phase 10 completion — 6 October 2026
+
+- Research Assistant reuses chat with persisted Public/Private/Both scope,
+  SQL-authorized evidence, structured citation validation and saved-source checks.
+- Final focused regression: 60 passed, 1 MySQL-only skip. Final disposable MySQL
+  gate: 113 passed. Frontend: 74 passed plus production build/type checks.
+- Live synthetic acceptance passed all three scopes, cited streams, follow-up,
+  abstention, saved reopening, PDF access and publication withdrawal.
+- All original data was preserved; two concurrently added messages in an existing
+  conversation explain the aggregate hash difference and were independently
+  reconciled. Exact test fixtures and temporary sessions were removed.
+- Deployed the corrected error UI and backend. With user approval, switched the
+  overloaded NVIDIA model to the free router. Three final requests needed one
+  explicit retry; provider reliability remains a documented limitation.
+- Details, backups, deployment and receipts: `docs/phase10-research-assistant.md`.
+- Next: Phase 11 exact document selection through the existing retrieval service.
 
 ### Phase 9 completion - 5 October 2026
 

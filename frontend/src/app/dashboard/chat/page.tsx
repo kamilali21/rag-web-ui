@@ -13,6 +13,7 @@ interface Chat {
   created_at: string;
   messages: Message[];
   knowledge_base_ids: number[];
+  source_scope: "public" | "private" | "both";
 }
 
 interface Message {
@@ -80,10 +81,10 @@ export default function ChatPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="text-3xl font-bold">
-                Your Conversations
+                Research Assistant
               </h2>
               <p className="text-muted-foreground mt-1">
-                Explore and manage your chat history
+                Ask questions with cited evidence and reopen your conversations
               </p>
             </div>
             <Link
@@ -128,6 +129,7 @@ export default function ChatPage() {
                         {chat.title}
                       </h3>
                       <p className="text-sm text-muted-foreground mt-1">
+                        {chat.source_scope === "both" ? "Public + Private" : chat.source_scope === "public" ? "Public" : "Private"} ·{" "}
                         {chat.messages.length} messages •{" "}
                         {new Date(chat.created_at).toLocaleDateString()}
                       </p>

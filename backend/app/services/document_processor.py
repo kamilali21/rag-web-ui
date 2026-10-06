@@ -364,9 +364,9 @@ def process_document_background(
             # 6. 存储文档块
             logger.info(f"Task {task_id}: Storing document chunks")
             for i, chunk in enumerate(chunks):
-                # 为每个 chunk 生成唯一的 ID
+                # Preserve distinct evidence locations even when pages repeat text.
                 chunk_id = hashlib.sha256(
-                    f"{kb_id}:{file_name}:{chunk.page_content}".encode()
+                    f"{kb_id}:{document.id}:{i}:{chunk.page_content}".encode()
                 ).hexdigest()
 
                 chunk.metadata["source"] = file_name

@@ -42,9 +42,10 @@ def test_chat_retrieves_all_selected_collections_and_persists_the_stream():
     with patch.object(chat_service, "require_chat_sources", return_value=[
         SimpleNamespace(id=11), SimpleNamespace(id=12)
     ]), patch.object(chat_service, "resolve_scope", return_value={11: [11], 12: [12]}), patch.object(
-        chat_service, "PrivateScopeRetriever", return_value=FixtureRetriever(documents=documents)
+        chat_service, "ScopedRetriever", return_value=FixtureRetriever(documents=documents)
+    ), patch.object(chat_service, "recheck_before_output"
     ), patch.object(chat_service.LLMFactory, "create", return_value=FakeListChatModel(
-        responses=["Irrigation results differ. [citation:1][citation:2]"]
+        responses=['{"text":"Irrigation results differ.","citations":["E1","E2"]}']
     )):
         frames = asyncio.run(collect())
     text = "".join(json.loads(frame[2:]) for frame in frames if frame.startswith("0:"))

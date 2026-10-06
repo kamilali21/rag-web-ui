@@ -7,6 +7,7 @@ import { documentSize } from "@/lib/library";
 import { CorpusEvidence, Department, PublicDocument, PublicMetadata } from "@/lib/public-library";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import Link from "next/link";
 
 const message = (error: unknown) => error instanceof ApiError ? error.message : "Request failed. Please try again.";
 
@@ -81,6 +82,7 @@ export function PublicQuery({ open, onOpenChange, onSelect }: { open: boolean; o
   };
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="public-document-dialog">
     <DialogHeader><DialogTitle>Query UAF corpus</DialogTitle><DialogDescription>Published research evidence</DialogDescription></DialogHeader>
+    <Link href="/dashboard/chat/new?scope=public" className="primary-action premium-action justify-center">Ask Research Assistant</Link>
     <form onSubmit={submit} className="space-y-3">
       <label htmlFor="public-question" className="block text-sm font-medium">Question</label>
       <textarea id="public-question" className="public-input w-full" rows={3} maxLength={4000} value={query} onChange={event => setQuery(event.target.value)} required />

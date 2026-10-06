@@ -48,7 +48,7 @@ def world():
         assert url.host == "127.0.0.1" and url.database == "researchiq_phase2_test", "Refusing a non-test database"
         engine = sa.create_engine(uri)
         with engine.begin() as connection:
-            assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "riq_004"
+            assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "riq_005"
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
     else:
@@ -383,7 +383,7 @@ def test_authorized_http_chat_streams_and_persists_citations_from_both_collectio
     with patch.object(chat_service.EmbeddingsFactory, "create"), patch.object(
         chat_service.VectorStoreFactory, "create", side_effect=stores
     ), patch.object(chat_service.LLMFactory, "create", return_value=FakeListChatModel(
-        responses=["Irrigation findings differ. [citation:1][citation:2]"]
+        responses=['{"text":"Irrigation findings differ.","citations":["E1","E2"]}']
     )):
         response = w.client.post(f"/api/chat/{chat_id}/messages", json={"messages": [
             {"role": "user", "content": "Compare irrigation findings."}

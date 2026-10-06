@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
 from app.models.chat import Chat, Message
+from app.models.knowledge import KnowledgeBase
 from app.schemas.chat import (
     ChatCreate,
     ChatResponse,
@@ -16,9 +17,21 @@ from app.core.security import get_current_user
 from app.services.chat_service import generate_response
 from app.services.authorization import (
     private_chat_filter, require_private_chat, require_private_knowledge_bases,
+    private_kb_filter,
 )
+from app.services.citations import permitted_chat_sources, saved_content, UNAVAILABLE
+from app.services.public_corpus import get_corpus
 
 router = APIRouter()
+
+
+def readable_chat(db, actor, chat):
+    result = ChatResponse.model_validate(chat)
+    sources = permitted_chat_sources(db, actor, chat)
+    result.messages = [MessageResponse.model_validate(message).model_copy(update={
+        "content": saved_content(message.content, sources) if message.role == "assistant" else message.content
+    }) for message in sorted(chat.messages, key=lambda row: row.id)]
+    return result
 
 @router.post("/", response_model=ChatResponse)
 def create_chat(
@@ -28,11 +41,21 @@ def create_chat(
     current_user: User = Depends(get_current_user)
 ) -> Any:
     # Added by ChatGPT: validate all sources before storing a chat association.
-    knowledge_bases = require_private_knowledge_bases(db, current_user, chat_in.knowledge_base_ids)
+    ids = chat_in.knowledge_base_ids
+    if chat_in.source_scope in {"public", "both"}:
+        get_corpus(db, current_user)
+    if chat_in.source_scope == "public":
+        if ids:
+            raise HTTPException(422, "Public conversations cannot select private collections")
+        ids = []
+    elif ids is None:
+        ids = [row.id for row in db.query(KnowledgeBase).filter(private_kb_filter(current_user)).all()]
+    knowledge_bases = require_private_knowledge_bases(db, current_user, ids)
     
     chat = Chat(
         title=chat_in.title,
         user_id=current_user.id,
+        source_scope=chat_in.source_scope,
     )
     chat.knowledge_bases = knowledge_bases
     
@@ -55,7 +78,7 @@ def get_chats(
         .limit(limit)
         .all()
     )
-    return chats
+    return [readable_chat(db, current_user, chat) for chat in chats]
 
 @router.get("/{chat_id}", response_model=ChatResponse)
 def get_chat(
@@ -64,7 +87,7 @@ def get_chat(
     chat_id: int,
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    return require_private_chat(db, current_user, chat_id)
+    return readable_chat(db, current_user, require_private_chat(db, current_user, chat_id))
 
 @router.post("/{chat_id}/messages")
 async def create_message(
@@ -78,9 +101,17 @@ async def create_message(
     chat = require_private_chat(db, current_user, chat_id)
     
     # Get the last user message
-    last_message = messages["messages"][-1]
-    if last_message["role"] != "user":
-        raise HTTPException(status_code=400, detail="Last message must be from user")
+    items = messages.get("messages")
+    last_message = items[-1] if isinstance(items, list) and items else None
+    if (not isinstance(last_message, dict) or last_message.get("role") != "user"
+            or not isinstance(last_message.get("content"), str)
+            or not last_message["content"].strip() or len(last_message["content"]) > 4000):
+        raise HTTPException(422, "Provide a non-empty final user message up to 4000 characters")
+    # History and persisted source scope come from SQL, never client assistant messages.
+    saved = readable_chat(db, current_user, chat)
+    trusted_messages = {"messages": [{"role": m.role, "content": m.content}
+        for m in saved.messages[-20:] if m.content != UNAVAILABLE] + [last_message]}
+    source_scope = chat.source_scope
     
     # Get knowledge base IDs
     knowledge_base_ids = [kb.id for kb in chat.knowledge_bases]
@@ -88,11 +119,12 @@ async def create_message(
     async def response_stream():
         async for chunk in generate_response(
             query=last_message["content"],
-            messages=messages,
+            messages=trusted_messages,
             knowledge_base_ids=knowledge_base_ids,
             chat_id=chat_id,
             db=db,
             current_user=current_user,
+            source_scope=source_scope,
         ):
             yield chunk
 

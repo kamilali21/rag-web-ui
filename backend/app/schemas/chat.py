@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional, Literal
 from datetime import datetime
 
 class MessageBase(BaseModel):
@@ -19,10 +19,11 @@ class MessageResponse(MessageBase):
         from_attributes = True
 
 class ChatBase(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=255)
 
 class ChatCreate(ChatBase):
-    knowledge_base_ids: List[int]
+    knowledge_base_ids: List[int] | None = Field(default=None, max_length=100)
+    source_scope: Literal["public", "private", "both"] = "private"
 
 class ChatUpdate(ChatBase):
     knowledge_base_ids: Optional[List[int]] = None
@@ -34,6 +35,7 @@ class ChatResponse(ChatBase):
     updated_at: datetime
     messages: List[MessageResponse] = []
     knowledge_base_ids: List[int] = []
+    source_scope: Literal["public", "private", "both"] = "private"
 
     class Config:
-        from_attributes = True 
+        from_attributes = True

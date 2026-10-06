@@ -16,7 +16,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, configure_mappers
 
 BASELINE = "3580c0dcd005"
-HEAD = "riq_004"
+HEAD = "riq_005"
 NEW_TABLES = {
     "roles", "user_roles", "departments", "admin_allowlist", "email_otps",
     "auth_sessions", "auth_rate_limits", "academic_document_metadata", "bookmarks",

@@ -1,6 +1,6 @@
 """Added by ChatGPT: shared authorization rules; no implicit admin or private-data bypass."""
 from fastapi import HTTPException
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.authorization import AdminAllowlist, Role, user_roles
@@ -87,6 +87,8 @@ def private_chat_filter(user: User):
     # Saved answers may contain evidence, so protect reads as well as generation.
     require_active_user(user)
     return and_(Chat.user_id == user.id,
+                Chat.source_scope.in_(["public", "private", "both"]),
+                or_(Chat.source_scope != "public", ~Chat.knowledge_bases.any()),
                 ~Chat.knowledge_bases.any(~private_kb_filter(user)))
 
 

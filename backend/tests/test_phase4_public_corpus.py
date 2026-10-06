@@ -433,3 +433,18 @@ def test_public_chunk_cleanup_ids_are_committed_before_vector_writes(corpus, mon
         add(documents)
     monkeypatch.setattr(w.store, "add_documents", inspect_then_add)
     assert upload(w)["status"] == "completed"
+
+
+def test_repeated_page_text_keeps_distinct_sql_vector_ids_and_citation_pages(corpus, monkeypatch):
+    w = corpus
+    class RepeatedPages:
+        def __init__(self, *args, **kwargs): pass
+        def load(self):
+            return [Evidence(page_content="The experiment included 120 plots.", metadata={"page": page}) for page in [0, 1]]
+    monkeypatch.setattr(document_processor, "TextLoader", RepeatedPages)
+    result = upload(w)
+    assert result["status"] == "completed"
+    chunks = w.db.query(DocumentChunk).filter_by(document_id=result["document_id"]).all()
+    assert len(chunks) == 2 and len({row.id for row in chunks}) == 2
+    assert {row.chunk_metadata["page"] for row in chunks} == {0, 1}
+    assert {row.id for row in chunks} == set(w.store.documents)

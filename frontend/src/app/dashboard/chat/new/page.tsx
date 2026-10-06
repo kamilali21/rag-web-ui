@@ -1,205 +1,81 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { api, ApiError } from "@/lib/api";
-import { useToast } from "@/components/ui/use-toast";
-import { Plus } from "lucide-react";
 
-interface KnowledgeBase {
-  id: number;
-  name: string;
-  description: string;
-}
+type Scope = "public" | "private" | "both";
+interface KnowledgeBase { id: number; name: string; description?: string }
 
 export default function NewChatPage() {
   const router = useRouter();
-  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [selectedKB, setSelectedKB] = useState<number | null>(null);
+  const [scope, setScope] = useState<Scope>("private");
+  const [collections, setCollections] = useState<KnowledgeBase[]>([]);
+  const [selected, setSelected] = useState<number[]>([]);
   const [title, setTitle] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
 
   useEffect(() => {
-    fetchKnowledgeBases();
+    const requested = new URLSearchParams(window.location.search).get("scope");
+    if (requested === "public" || requested === "private" || requested === "both") setScope(requested);
+    let active = true;
+    api.get("/api/knowledge-base").then((rows: KnowledgeBase[]) => {
+      if (active) { setCollections(rows); setSelected(rows.map(row => row.id)); }
+    }).catch(() => { if (active) setError("Private collections could not be loaded. Please refresh to retry."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
-  const fetchKnowledgeBases = async () => {
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!title.trim() || (scope === "private" && !selected.length)) return;
+    setSubmitting(true); setError("");
     try {
-      const data = await api.get("/api/knowledge-base");
-      setKnowledgeBases(data);
-      setIsLoading(false);
-    } catch (error) {
-      console.error("Failed to fetch knowledge bases:", error);
-      if (error instanceof ApiError) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedKB) {
-      setError("Please select a knowledge base");
-      return;
-    }
-
-    setError("");
-    setIsSubmitting(true);
-
-    try {
-      const data = await api.post("/api/chat", {
-        title,
-        knowledge_base_ids: [selectedKB],
+      const chat = await api.post("/api/chat/", {
+        title: title.trim(), source_scope: scope, knowledge_base_ids: scope === "public" ? [] : selected,
       });
-
-      router.push(`/dashboard/chat/${data.id}`);
-    } catch (error) {
-      console.error("Failed to create chat:", error);
-      if (error instanceof ApiError) {
-        setError(error.message);
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        setError("Failed to create chat");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+      router.push(`/dashboard/chat/${chat.id}`);
+    } catch (failure) {
+      setError(failure instanceof ApiError ? failure.message : "Conversation could not be started. Please try again.");
+    } finally { setSubmitting(false); }
   };
 
-  const selectKnowledgeBase = (id: number) => {
-    setSelectedKB(id);
-  };
-
-  if (!isLoading && knowledgeBases.length === 0) {
-    return (
-      <DashboardLayout>
-        <div className="max-w-2xl mx-auto text-center py-16">
-          <h2 className="text-3xl font-bold tracking-tight mb-4">
-            No Knowledge Bases Found
-          </h2>
-          <p className="text-muted-foreground mb-8">
-            You need to create at least one knowledge base before starting a
-            chat.
-          </p>
-          <Link
-            href="/dashboard/knowledge"
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Knowledge Base
-          </Link>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  return (
-    <DashboardLayout>
-      <div className="max-w-2xl mx-auto space-y-8">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Start New Chat</h2>
-          <p className="text-muted-foreground">
-            Select a knowledge base to chat with
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label
-              htmlFor="title"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Chat Title
-            </label>
-            <input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              type="text"
-              required
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="Enter chat title"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Knowledge Base
-            </label>
-            <div className="text-xs text-muted-foreground">
-              Multiple selection coming soon...
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {isLoading ? (
-                <div className="col-span-2 flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : (
-                knowledgeBases.map((kb) => (
-                  <label
-                    key={kb.id}
-                    className={`group flex items-center space-x-3 rounded-lg border p-4 cursor-pointer transition-all duration-200 hover:shadow-md ${
-                      selectedKB === kb.id
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "hover:border-primary/50"
-                    }`}
-                  >
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="radio"
-                        name="knowledge-base"
-                        className="peer h-4 w-4 shrink-0 rounded-full border border-primary text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        checked={selectedKB === kb.id}
-                        onChange={() => selectKnowledgeBase(kb.id)}
-                      />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="font-medium group-hover:text-primary transition-colors">
-                        {kb.name}
-                      </p>
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {kb.description || "No description provided"}
-                      </p>
-                    </div>
-                  </label>
-                ))
-              )}
-            </div>
-          </div>
-
-          {error && <div className="text-sm text-red-500">{error}</div>}
-
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !selectedKB}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-            >
-              {isSubmitting ? "Creating..." : "Start Chat"}
-            </button>
-          </div>
-        </form>
+  return <DashboardLayout><div className="max-w-2xl mx-auto space-y-6">
+    <header><h1 className="text-3xl font-bold">Research Assistant</h1>
+      <p className="text-muted-foreground mt-2">Choose your sources for a new conversation. Answers include inspectable citations.</p></header>
+    <form onSubmit={submit} className="space-y-6">
+      <div className="space-y-2"><label htmlFor="chat-title" className="block font-medium">Conversation title</label>
+        <input id="chat-title" className="public-input w-full" required maxLength={255} value={title}
+          onChange={event => setTitle(event.target.value)} placeholder="What are you researching?" /></div>
+      <fieldset className="space-y-2"><legend className="font-medium">Sources</legend>
+        <div className="flex flex-wrap gap-3">{(["public", "private", "both"] as Scope[]).map(value => <label key={value}
+          className={`flex items-center gap-2 rounded-lg border px-4 py-3 cursor-pointer ${scope === value ? "border-primary bg-primary/5" : ""}`}>
+          <input type="radio" name="source-scope" value={value} checked={scope === value} onChange={() => setScope(value)} />
+          {value === "both" ? "Both" : value === "public" ? "Public" : "Private"}
+        </label>)}</div>
+        <p className="text-sm text-muted-foreground">{scope === "public" ? "Published UAF corpus documents." : scope === "both" ? "Published UAF documents and your selected private collections." : "Ready documents in your selected private collections."}</p>
+      </fieldset>
+      {scope !== "public" && <fieldset className="space-y-3"><legend className="font-medium">Private collections</legend>
+        {loading ? <p role="status">Loading collections...</p> : collections.length ? <div className="grid gap-3 sm:grid-cols-2">
+          {collections.map(collection => <label key={collection.id} className="flex items-start gap-3 border rounded-lg p-3 cursor-pointer">
+            <input className="mt-1" type="checkbox" checked={selected.includes(collection.id)} onChange={event => setSelected(ids => event.target.checked ? [...ids, collection.id] : ids.filter(id => id !== collection.id))} />
+            <span className="min-w-0"><span className="block font-medium break-words">{collection.name}</span>
+              {collection.description && <span className="block text-sm text-muted-foreground line-clamp-2">{collection.description}</span>}</span>
+          </label>)}
+        </div> : <p className="text-sm text-muted-foreground">No private collections yet. <Link href="/dashboard/knowledge" className="underline">Open your Library</Link>, or choose Public to use the corpus.</p>}
+        <p className="text-xs text-muted-foreground">This source selection is saved with the conversation. Start a new conversation to change it.</p>
+      </fieldset>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <div className="flex flex-wrap justify-end gap-3">
+        <button type="button" onClick={() => router.back()} className="secondary-action">Cancel</button>
+        <button type="submit" className="primary-action premium-action" disabled={submitting || !title.trim() || (scope !== "public" && loading) || (scope === "private" && !selected.length)}>
+          {submitting ? "Starting..." : "Start conversation"}
+        </button>
       </div>
-    </DashboardLayout>
-  );
+    </form>
+  </div></DashboardLayout>;
 }

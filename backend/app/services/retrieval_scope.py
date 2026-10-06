@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import AcademicDocumentMetadata, Document, KnowledgeBase, User
+from app.models import AcademicDocumentMetadata, Department, Document, KnowledgeBase, User
 from app.models.knowledge import ProcessingTask, DocumentChunk
 from app.services.authorization import private_kb_filter, require_active_user, require_private_knowledge_bases
 from app.services.public_corpus import get_corpus
@@ -22,18 +22,21 @@ def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_bas
 
     Empty means no permitted sources; callers must not fall back to an unfiltered
     search. Re-resolve before exposing evidence if an external request intervenes.
-    Chat source selection and exact selected-document mode belong to later gates.
+    Private collection selections also apply inside Both conversations.
     """
     require_active_user(actor)
     if scope not in {"public", "private", "both"}:
         raise HTTPException(422, "Scope must be public, private or both")
     if knowledge_base_ids is not None:
-        if scope != "private":
+        if scope == "public":
             raise HTTPException(422, "Collection selection applies only to private sources")
         require_private_knowledge_bases(db, actor, knowledge_base_ids)
     permitted = []
     if scope in {"private", "both"}:
-        permitted.append(private_kb_filter(actor))
+        private = private_kb_filter(actor)
+        if knowledge_base_ids is not None:
+            private = and_(private, KnowledgeBase.id.in_(knowledge_base_ids))
+        permitted.append(private)
     if scope in {"public", "both"}:
         corpus = get_corpus(db, actor)
         permitted.append(and_(KnowledgeBase.id == corpus.id, KnowledgeBase.scope == "public",
@@ -46,8 +49,6 @@ def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_bas
     query = db.query(Document.knowledge_base_id, Document.id).join(KnowledgeBase).outerjoin(
         AcademicDocumentMetadata, AcademicDocumentMetadata.document_id == Document.id,
     ).filter(or_(*permitted), latest_status == "completed")
-    if knowledge_base_ids is not None:
-        query = query.filter(Document.knowledge_base_id.in_(knowledge_base_ids))
     rows = query.order_by(Document.knowledge_base_id, Document.id).all()
     sources: dict[int, list[int]] = {}
     for kb_id, document_id in rows:
@@ -102,10 +103,16 @@ def search_scope(db: Session, actor: User, scope: SourceScope, query: str, top_k
         content = metadata.get("page_content")
         if not isinstance(content, str) or not content:
             continue
+        academic = document.academic_metadata
+        department = db.get(Department, academic.department_id) if academic and academic.department_id else None
         results.append({"content": content, "score": score, "metadata": {
             "chunk_id": chunk_id, "document_id": document.id, "kb_id": kb_id,
             "scope": document.knowledge_base.scope, "file_name": document.file_name,
-            "page": metadata.get("page")}})
+            "page": metadata.get("page"), "knowledge_base_name": document.knowledge_base.name,
+            "title": academic.title if academic else document.file_name,
+            "authors": academic.authors_text if academic else None,
+            "department": department.name if department else None,
+            "year": academic.publication_year if academic else None}})
         seen.add(key)
         if len(results) == top_k:
             break

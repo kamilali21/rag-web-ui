@@ -568,7 +568,7 @@ def test_mysql_verification_migration_roundtrip_preserves_existing_data(world, m
     w.db.close()
     with w.engine.connect() as connection:
         inspector = sa.inspect(connection)
-        tables = {name: [c["name"] for c in inspector.get_columns(name) if c["name"] != "email_verified_at"]
+        tables = {name: [c["name"] for c in inspector.get_columns(name) if c["name"] not in {"email_verified_at", "source_scope"}]
                   for name in inspector.get_table_names() if name != "alembic_version"}
         before = snapshot(connection, tables)
     config = Config("alembic.ini")

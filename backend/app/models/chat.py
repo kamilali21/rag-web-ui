@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Table
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Table, CheckConstraint
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import relationship
 from app.models.base import Base, TimestampMixin
@@ -17,6 +17,8 @@ class Chat(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    source_scope = Column(String(16), nullable=False, default="private", server_default="private")
+    __table_args__ = (CheckConstraint("source_scope IN ('public', 'private', 'both')", name="ck_chats_source_scope"),)
 
     # Relationships
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
@@ -27,6 +29,10 @@ class Chat(Base, TimestampMixin):
         backref="chats"
     )
 
+    @property
+    def knowledge_base_ids(self):
+        return [kb.id for kb in self.knowledge_bases]
+
 class Message(Base, TimestampMixin):
     __tablename__ = "messages"
 
@@ -36,4 +42,4 @@ class Message(Base, TimestampMixin):
     chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
 
     # Relationships
-    chat = relationship("Chat", back_populates="messages") 
+    chat = relationship("Chat", back_populates="messages")

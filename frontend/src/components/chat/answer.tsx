@@ -85,10 +85,20 @@ export const Answer: FC<{
         const key = `${kb_id}-${document_id}`;
         if (infoMap[key]) continue;
 
+        if (citation.metadata.title && citation.metadata.knowledge_base_name) {
+          infoMap[key] = {
+            knowledge_base: { name: citation.metadata.knowledge_base_name },
+            document: { file_name: citation.metadata.title,
+              knowledge_base: { name: citation.metadata.knowledge_base_name } },
+          };
+          continue;
+        }
+
         try {
+          const isPublic = citation.metadata.scope === "public";
           const [kb, doc] = await Promise.all([
-            api.get(`/api/knowledge-base/${kb_id}`),
-            api.get(`/api/knowledge-base/${kb_id}/documents/${document_id}`),
+            api.get(isPublic ? "/api/corpus" : `/api/knowledge-base/${kb_id}`),
+            api.get(isPublic ? `/api/corpus/documents/${document_id}` : `/api/knowledge-base/${kb_id}/documents/${document_id}`),
           ]);
 
           infoMap[key] = {
@@ -172,10 +182,19 @@ export const Answer: FC<{
                   </div>
                 )}
                 <Divider />
+                {citation.metadata.authors && <p className="text-xs text-gray-600">{citation.metadata.authors}</p>}
+                {(citation.metadata.department || citation.metadata.year) && <p className="text-xs text-gray-600">
+                  {[citation.metadata.department, citation.metadata.year].filter(Boolean).join(" · ")}
+                </p>}
                 <p className="text-gray-700 leading-relaxed">{citation.text}</p>
                 {/* Added by ChatGPT: show source location without exposing internal storage metadata. */}
                 {Number.isInteger(citation.metadata.page) && citation.metadata.page >= 0 &&
                   <p className="text-xs text-gray-500">Page {citation.metadata.page + 1}</p>}
+                {Number.isInteger(citation.metadata.document_id) && Number.isInteger(citation.metadata.kb_id) &&
+                  <a className="text-primary underline" target="_blank" rel="noopener noreferrer"
+                    href={`${citation.metadata.scope === "public" ? `/api/corpus/documents/${citation.metadata.document_id}` : `/api/knowledge-base/${citation.metadata.kb_id}/documents/${citation.metadata.document_id}`}/content?inline=true${Number.isInteger(citation.metadata.page) && citation.metadata.page >= 0 ? `#page=${citation.metadata.page + 1}` : ""}`}>
+                    Open source document
+                  </a>}
               </div>
             </PopoverContent>
           </Popover>
@@ -199,6 +218,7 @@ export const Answer: FC<{
   return (
     <div className="prose prose-sm max-w-full">
       <Markdown
+        skipHtml
         remarkPlugins={[remarkGfm, [remarkCitations, { citationIds: citations.map((citation) => citation.id) }]]}
         rehypePlugins={[rehypeHighlight]}
         components={{

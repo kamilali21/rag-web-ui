@@ -203,7 +203,7 @@ def test_chat_with_no_trusted_evidence_does_not_generate_an_answer(sources, prov
     monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: model)
     response = w.client.post(f"/api/chat/{w.chat.id}/messages", json={"messages": [
         {"role": "user", "content": "A question without evidence"}]}, headers=w.headers(w.alice))
-    assert "No permitted evidence" in response.text and "Must not be generated" not in response.text
+    assert "insufficient evidence" in response.text and "Must not be generated" not in response.text
     assert "__LLM_RESPONSE__" not in response.text and 'd:' in response.text
 
 
