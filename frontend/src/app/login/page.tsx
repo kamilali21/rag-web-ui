@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import PasswordLogin from "@/components/auth/password-login";
+import AuthShell from "@/components/auth/auth-shell";
 
 export default function LoginPage() {
   const [emailOTP, setEmailOTP] = useState<boolean | null>(null);
@@ -18,8 +19,8 @@ export default function LoginPage() {
   };
   useEffect(() => { void load(); }, []);
   if (emailOTP !== null) return <PasswordLogin emailOTP={emailOTP} />;
-  return <main className="auth-page"><div className="w-full max-w-md rounded-lg bg-white p-8 space-y-4 text-center">
+  return <AuthShell><div className="space-y-4 text-center">
     <p role={error ? "alert" : "status"}>{error || "Loading sign-in..."}</p>
     {error && <button className="primary-action" onClick={load}>Retry</button>}
-  </div></main>;
+  </div></AuthShell>;
 }

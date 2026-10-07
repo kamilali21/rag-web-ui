@@ -13,7 +13,32 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 11 Exact Document Retrieval — First Service Increment
+## Current Gate: Phase 11 Complete — Next: Phase 12 Structured Summary
+
+### Phase 11 completion and authentication hero checkpoint — 7 October 2026
+
+- Completed `POST /api/retrieval/documents/query` using the existing exact-selection
+  service. Required bounded integer IDs, complete-selection authorization, current
+  readiness/publication, native vector filters and fresh SQL evidence checks;
+  existing broad-scope routes and chat behavior remain unchanged.
+- Full isolated backend suite: **295 passed, 40 environment-specific skips**.
+  Focused Phase 9–11 suite: **98 passed, 1 MySQL-only skip**; disposable MySQL:
+  **99 passed**. No production schema change; revision is still `riq_005`.
+- Deployed backend route and passed live Public/Private/Both exact retrieval,
+  SQL citation metadata, foreign-user denial, validation and session/CSRF/origin
+  checks. Restored the checksum-verified original MiniLM cache after a first
+  attempt encountered missing weights. No LLM call or research-data mutation.
+- Every original research row, MinIO object and Chroma vector was preserved.
+  Temporary sessions removed; an independently verified concurrent revocation of
+  an existing session explains the aggregate fingerprint mismatch.
+- Included the previously deployed public auth hero and supplied UAF photograph.
+  Frontend evidence: **74 tests**, TypeScript and production build passed; live
+  login/register checks passed. Authentication handlers/forms are unchanged.
+  Browser visual sign-off remains unavailable.
+- Checkpoint tag: `researchiq-phase11-verified-20261007`. Details and receipts:
+  `docs/phase11-document-scoped-retrieval.md` and `docs/auth-hero-presentation.md`.
+- Next existing-plan task: Phase 12 structured single-document summary with
+  citations, reusing exact document retrieval. Not started in this checkpoint.
 
 ### Phase 11 started — 6 October 2026
 

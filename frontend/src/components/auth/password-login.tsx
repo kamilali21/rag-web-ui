@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import EmailLogin from "./email-login";
+import AuthShell from "./auth-shell";
 
 // Added by ChatGPT: passwords sign in; OTP is reserved for verification and recovery.
 export default function PasswordLogin({ emailOTP = false }: { emailOTP?: boolean }) {
@@ -60,13 +61,10 @@ export default function PasswordLogin({ emailOTP = false }: { emailOTP?: boolean
 
   // Added by ChatGPT: shared forest/cream authentication surface retains the login behavior.
   return (
-    <main className="auth-page">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-md p-8 space-y-6">
+    <AuthShell>
+        <div className="space-y-6">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Welcome To rAGRI search
-            </h1>
+            <h2 className="auth-form-title">Welcome to rAGRI search</h2>
             <p className="mt-2 text-sm text-gray-600">
               Please sign in to continue
             </p>
@@ -143,7 +141,6 @@ export default function PasswordLogin({ emailOTP = false }: { emailOTP?: boolean
             </Link>
           </div>
         </div>
-      </div>
-    </main>
+    </AuthShell>
   );
 }

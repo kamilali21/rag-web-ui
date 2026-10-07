@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import EmailLogin from "@/components/auth/email-login";
+import AuthShell from "@/components/auth/auth-shell";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -119,18 +120,15 @@ export default function RegisterPage() {
 
   // Added by ChatGPT: registration inherits the same reference palette and control shapes.
   if (registered) return <EmailLogin initialEmail={registered.email} initialPassword={registered.password} />;
-  if (emailOTP === null) return <main className="auth-page"><div className="w-full max-w-md rounded-lg bg-white p-8 space-y-4 text-center">
+  if (emailOTP === null) return <AuthShell><div className="space-y-4 text-center">
     <p role={error ? "alert" : "status"}>{error || "Loading sign-in..."}</p>
     {error && <Link href="/login">Back to sign in</Link>}
-  </div></main>;
+  </div></AuthShell>;
   return (
-    <main className="auth-page">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-md p-8 space-y-6">
+    <AuthShell>
+        <div className="space-y-6">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Welcome To rAGRI search
-            </h1>
+            <h2 className="auth-form-title">Welcome to rAGRI search</h2>
             <p className="mt-2 text-sm text-gray-600">
               Create your account to get started
             </p>
@@ -270,7 +268,6 @@ export default function RegisterPage() {
             </Link>
           </div>
         </div>
-      </div>
-    </main>
+    </AuthShell>
   );
 }

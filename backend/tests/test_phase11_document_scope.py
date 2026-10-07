@@ -69,3 +69,77 @@ def test_selected_source_revocation_aborts_instead_of_returning_a_partial_select
     with pytest.raises(HTTPException) as error:
         search_documents(w.db, w.alice, [private_id, public_id], "question")
     assert error.value.status_code == 404
+
+
+@pytest.mark.parametrize("scope,names", [
+    ("private", ["alice_doc"]), ("public", ["published"]),
+    ("both", ["alice_doc", "published", "alice_doc"]),
+])
+def test_http_exact_selection_and_sql_citation_metadata(sources, provider, scope, names):
+    w = sources
+    ids = [getattr(w, name).id for name in names]
+    response = w.client.post("/api/retrieval/documents/query", headers=w.headers(w.alice),
+        json={"document_ids": ids, "query": "question", "scope": scope, "top_k": 20})
+    assert response.status_code == 200
+    rows = response.json()["results"]
+    assert {row["metadata"]["document_id"] for row in rows} == set(ids)
+    assert len(rows) == len(set(ids))
+    for row in rows:
+        assert row["content"] == f"SQL evidence {row['metadata']['document_id']}"
+        assert row["metadata"]["chunk_id"] == f"chunk-{row['metadata']['document_id']}"
+        assert row["metadata"]["page"] == 3 and row["metadata"]["file_name"] != "forged.pdf"
+
+
+@pytest.mark.parametrize("body", [
+    {}, {"document_ids": None}, {"document_ids": []}, {"document_ids": [True]},
+    {"document_ids": ["1"]}, {"document_ids": [1.0]}, {"document_ids": [0]},
+    {"document_ids": [-1]}, {"document_ids": list(range(1, 22))},
+    {"document_ids": "1"}, {"document_ids": [1], "scope": "all"},
+    {"document_ids": [1], "knowledge_base_ids": [1]},
+    {"document_ids": [1], "query": " "}, {"document_ids": [1], "query": "x" * 4001},
+    {"document_ids": [1], "top_k": 0}, {"document_ids": [1], "top_k": 21},
+])
+def test_http_invalid_selection_is_never_broadened(sources, provider, body):
+    response = sources.client.post("/api/retrieval/documents/query", headers=sources.headers(sources.alice),
+        json={"query": "question", **body})
+    assert response.status_code == 422
+    provider.assert_not_called()
+
+
+@pytest.mark.parametrize("unavailable", ["bob_doc", "draft", "archived", "failed", "missing"])
+def test_http_rejects_entire_mixed_selection(sources, provider, unavailable):
+    w = sources
+    bad_id = 999999 if unavailable == "missing" else getattr(w, unavailable).id
+    response = w.client.post("/api/retrieval/documents/query", headers=w.headers(w.alice),
+        json={"document_ids": [w.alice_doc.id, bad_id], "query": "question"})
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Selected documents are unavailable"}
+    provider.assert_not_called()
+
+
+def test_http_requires_auth_and_respects_scope_and_admin_private_boundaries(sources, provider):
+    w = sources
+    body = {"document_ids": [w.alice_doc.id], "query": "question"}
+    assert w.client.post("/api/retrieval/documents/query", json=body).status_code == 401
+    for actor in [w.professor, w.superuser]:
+        assert w.client.post("/api/retrieval/documents/query", json=body,
+            headers=w.headers(actor)).status_code == 404
+    assert w.client.post("/api/retrieval/documents/query", json={**body, "scope": "public"},
+        headers=w.headers(w.alice)).status_code == 404
+    provider.assert_not_called()
+
+
+def test_http_empty_vectors_and_provider_failure_never_trigger_broad_fallback(sources, provider):
+    w = sources
+    body = {"document_ids": [w.alice_doc.id], "query": "question"}
+    original = provider.side_effect
+    def empty(**kwargs):
+        store = original(**kwargs)
+        store.search_permitted.return_value = []
+        return store
+    provider.side_effect = empty
+    response = w.client.post("/api/retrieval/documents/query", json=body, headers=w.headers(w.alice))
+    assert response.status_code == 200 and response.json() == {"results": []}
+    provider.side_effect = RuntimeError("private provider secret")
+    response = w.client.post("/api/retrieval/documents/query", json=body, headers=w.headers(w.alice))
+    assert response.status_code == 503 and response.json() == {"detail": "Scoped retrieval unavailable"}
