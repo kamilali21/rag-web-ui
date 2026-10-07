@@ -3,6 +3,16 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
+from functools import lru_cache
+from threading import Lock
+
+
+_model_lock = Lock()
+
+
+@lru_cache(maxsize=1)
+def _huggingface_model(model_name, token):
+    return HuggingFaceEmbeddings(model_name=model_name, model_kwargs={"token": token} if token else {})
 
 
 class EmbeddingsFactory:
@@ -30,12 +40,9 @@ class EmbeddingsFactory:
                 base_url=settings.OLLAMA_API_BASE
             )
         elif embeddings_provider == "huggingface":
-            model_kwargs = {}
-            if settings.HUGGINGFACE_API_KEY:
-                model_kwargs["token"] = settings.HUGGINGFACE_API_KEY
-            return HuggingFaceEmbeddings(
-                model_name=settings.HUGGINGFACE_EMBEDDINGS_MODEL,
-                model_kwargs=model_kwargs
-            )
+            # Reuse one local model per worker; serialize cold starts so concurrent
+            # uploads/searches cannot download and load duplicate copies.
+            with _model_lock:
+                return _huggingface_model(settings.HUGGINGFACE_EMBEDDINGS_MODEL, settings.HUGGINGFACE_API_KEY)
         else:
             raise ValueError(f"Unsupported embeddings provider: {embeddings_provider}")

@@ -15,6 +15,20 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 ## Current Gate: Phase 11 Complete — Next: Phase 12 Structured Summary
 
+### Chat reliability correction — 7 October 2026
+
+- Reproduced the reported greeting failure: the live model emitted an uncited
+  greeting that the research-answer validator rejected. Complete greetings now
+  bypass providers after authorization, while research questions remain cited.
+- Added one pre-output retry for malformed generation, filtered conversational
+  noise/error messages from model history, and reused the local embedding model
+  with serialized initialization. No authentication/schema/provider change.
+- Full backend **307 passed / 40 skips**; disposable MySQL **111 passed**.
+  Live greetings, synthetic PDF processing, cited answer, follow-up and saved
+  reopening passed; fixtures removed and existing research preserved.
+- Backend fix deployed; details and measurements: `docs/chat-reliability.md`.
+  Phase 12 has not started.
+
 ### Phase 11 completion and authentication hero checkpoint — 7 October 2026
 
 - Completed `POST /api/retrieval/documents/query` using the existing exact-selection

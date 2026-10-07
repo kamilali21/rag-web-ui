@@ -1,6 +1,7 @@
 import json
 import base64
 import logging
+import re
 from fastapi import HTTPException
 from openai import APIError
 from typing import List, AsyncGenerator, Any
@@ -25,6 +26,16 @@ from app.services.citations import INSUFFICIENT, encode_evidence, validated_bloc
 
 # Added by ChatGPT: retrieved private text must not be printed by global chain debugging.
 logger = logging.getLogger(__name__)
+
+GREETING = "Hello! Ask me a question about your selected research sources, and I'll help with evidence-backed answers and citations."
+
+
+def is_greeting(query: str) -> bool:
+    # Match only complete greetings; "hi, summarize this paper" still needs evidence.
+    normalized = " ".join(re.sub(r"[^\w\s]", "", query.casefold()).split())
+    return normalized in {"hi", "hello", "hey", "hi there", "hello there", "good morning",
+                          "good afternoon", "good evening", "salam", "assalamualaikum", "assalamu alaikum"}
+
 
 class ScopedRetriever(BaseRetriever):
     db: Any
@@ -70,6 +81,15 @@ async def generate_response(
         )
         db.add(bot_message)
         db.commit()
+
+        # Conversational acknowledgements make no research claims and need no provider.
+        # Keep this after source/ownership authorization and save the normal message pair.
+        if is_greeting(query):
+            bot_message.content = GREETING
+            db.commit()
+            yield f'0:{json.dumps(GREETING)}\n'
+            yield 'd:{"finishReason":"stop"}\n'
+            return
         
         actor_id = current_user.id
         sources = resolve_scope(db, current_user, source_scope,
@@ -151,11 +171,18 @@ async def generate_response(
         # Added by ChatGPT: the current question is already supplied as input, not history.
         for message in messages["messages"][:-1]:
             if message["role"] == "user":
-                chat_history.append(HumanMessage(content=message["content"]))
+                if not is_greeting(message["content"]):
+                    chat_history.append(HumanMessage(content=message["content"]))
             elif message["role"] == "assistant":
                 # if include __LLM_RESPONSE__, only use the last part
                 content = message["content"].split("__LLM_RESPONSE__")[-1]
-                chat_history.append(AIMessage(content=content))
+                if content.strip() and content.strip() not in {GREETING, INSUFFICIENT,
+                        "Unable to generate a response. Please try again.",
+                        "Research source retrieval is temporarily unavailable. Please try again shortly.",
+                        "The answer provider is temporarily unavailable. Please try again shortly.",
+                        "The model returned an incomplete or invalid answer. Please try again.",
+                        "Sources changed while answering. Please ask again using the available sources."}:
+                    chat_history.append(AIMessage(content=content))
 
         full_response = ""
 
@@ -187,11 +214,6 @@ async def generate_response(
 
         envelope = encode_evidence(serializable_context)
 
-        # json.dumps safely handles quotes/newlines for the stream protocol
-        recheck_before_output(db, actor_id, chat_id, serializable_context)
-        yield f'0:{json.dumps(envelope)}\n'
-        full_response += envelope
-
         # 3. Explicitly provide context to the document/answer chain.
         qa_input = {
             "input": query,
@@ -201,11 +223,25 @@ async def generate_response(
 
         # 4. Stream only the LLM answer.
         evidence_ids = [item["metadata"]["evidence_id"] for item in serializable_context]
-        async for answer_chunk in validated_blocks(question_answer_chain.astream(qa_input), evidence_ids):
+        answer_started = False
+        for attempt in range(2):
             recheck_before_output(db, actor_id, chat_id, serializable_context)
-            full_response += answer_chunk
-
-            yield f'0:{json.dumps(answer_chunk)}\n'
+            try:
+                async for answer_chunk in validated_blocks(question_answer_chain.astream(qa_input), evidence_ids):
+                    recheck_before_output(db, actor_id, chat_id, serializable_context)
+                    if not answer_started:
+                        yield f'0:{json.dumps(envelope)}\n'
+                        full_response = envelope
+                        answer_started = True
+                    full_response += answer_chunk
+                    yield f'0:{json.dumps(answer_chunk)}\n'
+                break
+            except ValueError:
+                # Free-router format failures may be transient. Never replay a partial
+                # answer or relax reference validation, and never retry authorization.
+                if attempt or answer_started:
+                    raise
+                logger.warning("Retrying invalid structured answer before output")
 
         # Update bot message content
         bot_message.content = full_response
@@ -222,6 +258,8 @@ async def generate_response(
             error_message = "The answer provider is temporarily unavailable. Please try again shortly."
         elif isinstance(e, HTTPException) and e.status_code == 409:
             error_message = "Sources changed while answering. Please ask again using the available sources."
+        elif isinstance(e, HTTPException) and e.status_code == 503:
+            error_message = "Research source retrieval is temporarily unavailable. Please try again shortly."
         elif isinstance(e, ValueError):
             error_message = "The model returned an incomplete or invalid answer. Please try again."
         yield f'3:{json.dumps(error_message)}\n'
