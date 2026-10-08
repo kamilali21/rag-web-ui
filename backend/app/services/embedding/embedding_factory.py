@@ -12,7 +12,13 @@ _model_lock = Lock()
 
 @lru_cache(maxsize=1)
 def _huggingface_model(model_name, token):
-    return HuggingFaceEmbeddings(model_name=model_name, model_kwargs={"token": token} if token else {})
+    kwargs = {"token": token} if token else {}
+    try:
+        # A recovered cache must work without a Hub network check on every restart.
+        return HuggingFaceEmbeddings(model_name=model_name, model_kwargs={**kwargs, "local_files_only": True})
+    except OSError:
+        # Fresh installations may download once; failed downloads are not cached.
+        return HuggingFaceEmbeddings(model_name=model_name, model_kwargs=kwargs)
 
 
 class EmbeddingsFactory:

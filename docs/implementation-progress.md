@@ -15,6 +15,23 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 ## Current Gate: Phase 11 Complete — Next: Phase 12 Structured Summary
 
+### Corpus-chat runtime correction - 8 October 2026
+
+- Fixed missing embedding weights after container recreation with a persistent,
+  verified MiniLM cache and local-first loading. No embedding/index change.
+- Query rewriting now fails back to the user's question instead of blocking
+  retrieval; provider requests are bounded. Added exact greeting typo handling.
+- With approval, pinned the zero-cost `apodex/apodex-1.1-mini:free` model and used
+  supported JSON object output. Application citation/permission checks remain
+  strict. No frontend, authentication, schema or research-data change.
+- Full backend **314 passed / 40 skips**; disposable MySQL **118 passed**.
+  Real Public history replay, broad question, follow-up, Private/Both cited
+  answers and saved reopening passed. Temporary fixtures removed; original
+  research rows/conversations preserved. Backend deployed.
+- Checkpoint `researchiq-chat-corpus-20261008`; details, initial failed attempts,
+  measured latency, provider limits and recovery: `docs/chat-reliability.md`.
+  Phase 12 has not started.
+
 ### Chat reliability correction — 7 October 2026
 
 - Reproduced the reported greeting failure: the live model emitted an uncited

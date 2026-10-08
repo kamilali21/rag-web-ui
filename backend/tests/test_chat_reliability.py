@@ -17,7 +17,7 @@ def send(w, query):
         json={"messages": [{"role": "user", "content": query}]})
 
 
-@pytest.mark.parametrize("query", ["hi", " Hello! ", "HEY", "hello there", "Good morning", "Assalamu alaikum"])
+@pytest.mark.parametrize("query", ["hi", " Hello! ", "HEY", "hello there", "Good morning", "god morning", "helo", "Assalamu alaikum"])
 def test_greetings_save_and_stream_without_retrieval_or_llm(sources, provider, monkeypatch, query):
     model = MagicMock(side_effect=AssertionError("Greeting must not call the provider"))
     monkeypatch.setattr(chat_service.LLMFactory, "create", model)
@@ -99,10 +99,80 @@ def test_local_embedding_model_is_reused_and_failed_initialization_is_retryable(
         with ThreadPoolExecutor(max_workers=4) as pool:
             loaded = list(pool.map(lambda _: module.EmbeddingsFactory.create(), range(8)))
         assert all(item is model for item in loaded) and constructor.call_count == 2
-        constructor.assert_called_with(model_name='test-model', model_kwargs={})
+        constructor.assert_called_with(model_name='test-model', model_kwargs={'local_files_only': True})
         monkeypatch.setattr(module.settings, 'HUGGINGFACE_EMBEDDINGS_MODEL', 'other-model')
         constructor.side_effect = None
         constructor.return_value = object()
         assert module.EmbeddingsFactory.create() is not model and constructor.call_count == 3
     finally:
         module._huggingface_model.cache_clear()
+
+
+@pytest.mark.parametrize('rewrite', ['', 'x' * 4001])
+def test_empty_or_oversized_rewrite_uses_original_question(sources, provider, monkeypatch, rewrite):
+    w = sources
+    w.db.add(Message(chat_id=w.chat.id, role='user', content='An earlier question'))
+    w.db.commit()
+    model = FakeListChatModel(responses=[rewrite, '{"text":"Supported result.","citations":["E1"]}'])
+    monkeypatch.setattr(chat_service.LLMFactory, 'create', lambda: model)
+    response = send(w, 'How do I set it up?')
+    assert 'd:' in response.text and '3:' not in response.text
+    assert provider.stores[w.alice_kb.id].search_permitted.call_args.args[0] == 'How do I set it up?'
+
+
+def test_failed_rewrite_does_not_abort_answer(sources, provider, monkeypatch):
+    import httpx
+    from openai import APIConnectionError
+    from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableLambda
+    w = sources
+    w.db.add(Message(chat_id=w.chat.id, role='user', content='An earlier question'))
+    w.db.commit()
+    calls = []
+    async def model(messages, **kwargs):
+        calls.append(True)
+        if len(calls) == 1:
+            raise APIConnectionError(request=httpx.Request('POST', 'https://provider.invalid'))
+        return AIMessage(content='{"text":"Supported result.","citations":["E1"]}')
+    monkeypatch.setattr(chat_service.LLMFactory, 'create', lambda: RunnableLambda(model))
+    response = send(w, 'Original question')
+    assert 'd:' in response.text and '3:' not in response.text and '[citation:1]' in response.text
+    assert provider.stores[w.alice_kb.id].search_permitted.call_args.args[0] == 'Original question'
+
+
+def test_missing_local_model_downloads_once_then_reuses_it(monkeypatch):
+    from app.services.embedding import embedding_factory as module
+    module._huggingface_model.cache_clear()
+    model = object()
+    constructor = MagicMock(side_effect=[OSError('not cached'), model])
+    monkeypatch.setattr(module, 'HuggingFaceEmbeddings', constructor)
+    try:
+        assert module._huggingface_model('fresh-model', '') is model
+        assert module._huggingface_model('fresh-model', '') is model
+        assert constructor.call_count == 2
+        assert constructor.call_args_list[0].kwargs['model_kwargs'] == {'local_files_only': True}
+        assert constructor.call_args_list[1].kwargs['model_kwargs'] == {}
+    finally:
+        module._huggingface_model.cache_clear()
+
+
+def test_openrouter_json_mode_applies_only_to_answer_and_keeps_citation_validation(sources, provider, monkeypatch):
+    from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableLambda
+    monkeypatch.setattr(chat_service.settings, 'CHAT_PROVIDER', 'openai')
+    monkeypatch.setattr(chat_service.settings, 'OPENAI_API_BASE', 'https://openrouter.ai/api/v1')
+    sources.db.add(Message(chat_id=sources.chat.id, role='user', content='Earlier question'))
+    sources.db.commit()
+    calls = []
+    async def model(messages, **kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return AIMessage(content='Standalone question')
+        # Provider JSON mode is a format aid; invented references must still fail.
+        return AIMessage(content='{"kind":"answer","text":"Invented claim","citations":["E99"]}')
+    monkeypatch.setattr(chat_service.LLMFactory, 'create', lambda: RunnableLambda(model))
+    response = send(sources, 'Follow-up question')
+    assert 'response_format' not in calls[0]
+    assert calls[1]['response_format'] == {'type': 'json_object'}
+    assert calls[1]['extra_body']['provider']['require_parameters'] is True
+    assert '3:' in response.text and 'Invented claim' not in response.text

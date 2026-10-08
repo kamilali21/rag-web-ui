@@ -65,3 +65,86 @@ The free-model router can still be unavailable or return invalid output after
 the bounded retry. Such failures remain visible and are never saved as successful
 research answers. Persistent on-disk model-cache hardening remains Phase 21.
 Next planned feature remains Phase 12: structured single-document summary.
+
+## Windows corpus-chat correction - 8 October 2026
+
+The 7 October synthetic acceptance did not cover the reported Public conversation
+with its restored history, or survival of the embedding cache across container
+recreation. This follow-up supersedes the cache deferral above only for the
+observed runtime failure; it does not close Phase 21 or start Phase 12.
+
+### Findings and fix
+
+- The recreated backend lacked MiniLM weights. Restored the checksum-verified
+  original cache into `researchiq_huggingface_cache`, mounted at
+  `/root/.cache/huggingface`. Verified an offline load, reuse, and persistence
+  across backend recreation. Local files are now tried first; a fresh install
+  can still download the same configured model. Embeddings and vectors were not
+  regenerated. Weight SHA-256 remains
+  `53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db`.
+- History rewriting could return empty/oversized text, fail, or stall before
+  retrieval. It now has a 20-second deadline and falls back to the original
+  question on these failures. Existing source authorization still controls search.
+- OpenRouter TLS/connectivity failures were intermittent, not a proven browser
+  or VPN block. OpenAI-compatible requests now have a 45-second SDK timeout and
+  one SDK retry. These are per-request/inactivity bounds, not a whole-turn SLA.
+- With user authorization, changed ignored runtime `.env` from `openrouter/free`
+  to `apodex/apodex-1.1-mini:free`. The account has no paid credit; no paid model
+  or purchase was used. Alternative probes returned 429/403 or invalid output.
+- The selected serving endpoint advertises structured output but rejects
+  `json_schema` with HTTP 400. Use its supported `json_object` mode for answers,
+  with reasoning disabled and parameter support required. Rewrites stay plain
+  text. The existing application validator still rejects wrong fields, invented
+  references, model-authored links, and malformed/partial output. Future selected
+  OpenRouter models must support JSON mode and disabling reasoning.
+- Clarified that broad library/corpus requests refer to supplied evidence, and
+  that supported partial answers should name missing details. Unsupported facts
+  still require abstention. Added exact greeting typos including `god morning`;
+  mixed greeting/research requests still require evidence.
+
+### Acceptance
+
+- Full isolated backend suite: **314 passed, 40 environment-specific skips**.
+- Disposable MySQL chat/Phase 9-11 gate: **118 passed**. The first invocation
+  inherited production OTP settings, so JWT fixture requests correctly returned
+  401 (64 failed / 54 passed). Reran with `EMAIL_OTP_ENABLED=false` only in the
+  disposable test container. Production OTP/session settings were never changed.
+- Final live HTTP replay used a temporary copy of Public chat 32's real history:
+  `god morning` **0.09s**, `how too setup one drive` **5.93s**, OneDrive overview
+  **26.71s**, and `What folders can it back up?` **22.16s**. All completed without
+  error frames, persisted exactly, and reopened. Research citations resolved to
+  permitted OneDrive document 31. The follow-up correctly named Desktop,
+  Documents and Pictures.
+- Private chat acceptance used a temporary copy of chat 16: cited answer in
+  **5.96s**, evidence only from document 28. Both scope passed in **8.12s**, with
+  permitted evidence from documents 28/31. Saved reopening passed in both cases.
+- These are individual observations, not guaranteed latency or provider uptime.
+  Earlier attempts are retained: JSON Schema was rejected; prompt-only output
+  could be invalid; some setup/overview attempts abstained. The PDF references
+  setup guides but does not contain full installation steps. The final cited
+  answers do not make missing step-by-step instructions available.
+- Final temporary chats 39/40/41 and sessions 148/149/150 were removed; earlier
+  diagnostic clones/sessions were also removed. Before/after hashes confirm all
+  original research records and conversations unchanged. Existing failed replies
+  remain historical records. No document/object/vector deletion or schema change.
+- Deployed by recreating the existing backend for its new cache mount/model
+  setting, then restarting for bind-mounted code changes and reloading nginx.
+  Frontend/hero and authentication are unchanged. Verification is real HTTP/API;
+  no connected-browser visual sign-off is claimed.
+- Evidence and runners are outside Git at
+  `ResearchIQ-recovery/20261003-cleanup/chat-public-final-20261008/`,
+  `chat-private-20261008/`, `chat-both-20261008/`, and
+  `chat-model-probe-20261008.json`; test runners also remain in ignored
+  `backend/.pytest_cache`.
+
+### Recovery
+
+The pre-change source archive is `chat-before-2b9fa8d-20261008.zip` outside Git.
+The protected `chat-env-before-20261008.bak` contains secrets and must not be
+committed or published. Roll back only these chat/embedding/factory edits if
+needed after preserving subsequent changes; restore just `OPENAI_MODEL` from
+the backup to reverse model selection. Keep the cache volume and existing
+research volumes. Restart/recreate only backend as appropriate and reload nginx;
+no database rollback is required. Preserve the user's separate MinIO image edit.
+
+Checkpoint: `researchiq-chat-corpus-20261008`. Next feature remains Phase 12.

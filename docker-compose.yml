@@ -8,6 +8,7 @@ services:
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
+      - huggingface_cache:/root/.cache/huggingface
     networks:
       - app_network
     depends_on:
@@ -103,6 +104,7 @@ services:
       - app_network
 
 volumes:
+  huggingface_cache:
   mysql_data:
   chroma_data:
   minio_data:

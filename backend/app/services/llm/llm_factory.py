@@ -24,7 +24,9 @@ class LLMFactory:
                 streaming=streaming,
                 model=settings.OPENAI_MODEL,
                 openai_api_key=settings.OPENAI_API_KEY,
-                openai_api_base=settings.OPENAI_API_BASE
+                openai_api_base=settings.OPENAI_API_BASE,
+                timeout=45,
+                max_retries=1,
             )
         elif provider.lower() == "deepseek":
             return ChatDeepSeek(
