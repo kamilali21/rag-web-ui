@@ -65,3 +65,9 @@ backend/.env
 *.bak
 # Added by ChatGPT: local database backups and verification receipts are never committed.
 .local/
+
+# Machine-specific recovery evidence and deployment secrets (never publish).
+/researchiq-mysql-backup.sql
+/windows-before-restore.sql
+.env.production
+deploy/tls/

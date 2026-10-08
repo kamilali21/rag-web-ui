@@ -77,7 +77,7 @@ services:
   #     - app_network
 
   minio:
-    image: quay.io/minio/minio
+    image: cgr.dev/chainguard/minio:latest
     ports:
       - "9000:9000"
       - "9001:9001"
