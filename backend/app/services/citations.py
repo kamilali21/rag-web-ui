@@ -23,6 +23,11 @@ class AnswerBlock(BaseModel):
     citations: list[str] = Field(default_factory=list, max_length=20)
 
 
+class AnswerResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    blocks: list[AnswerBlock] = Field(min_length=1, max_length=32)
+
+
 def render_block(value, evidence_ids):
     block = AnswerBlock.model_validate(value)
     if block.kind == "insufficient_evidence":
@@ -58,10 +63,21 @@ async def validated_blocks(chunks, evidence_ids):
                 value, end = decoder.raw_decode(buffer)
             except json.JSONDecodeError:
                 break
-            count += 1
+            if isinstance(value, dict) and "blocks" in value:
+                blocks = AnswerResponse.model_validate(value).blocks
+                if len(blocks) > 1 and any(block.kind == "insufficient_evidence" for block in blocks):
+                    raise ValueError("Abstention must be the only answer block")
+                # Validate the entire response before emitting any claim. The
+                # provider's JSON object can contain separately cited sentences.
+                rendered = [render_block(block.model_dump(), evidence_ids) for block in blocks]
+            else:
+                # Keep existing providers/tests and the original block format compatible.
+                rendered = [render_block(value, evidence_ids)]
+            count += len(rendered)
             if count > 32:
                 raise ValueError("Too many answer blocks")
-            yield render_block(value, evidence_ids)
+            for text in rendered:
+                yield text
             buffer = buffer[end:]
     if buffer.strip() or not count:
         raise ValueError("Incomplete structured answer")

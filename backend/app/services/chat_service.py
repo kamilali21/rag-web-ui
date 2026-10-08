@@ -146,13 +146,15 @@ async def generate_response(
             "When evidence supports only part of a broad question, explain that supported part with citations "
             "and clearly state which details the sources do not provide; do not discard useful evidence. "
             "If the requested measurement or fact is absent, use insufficient_evidence rather than an answer block. "
-            "Return ONLY one JSON object containing a concise answer. "
-            "No array, Markdown fences, HTML or surrounding prose. Use exactly these fields: "
-            '{{"kind":"answer","text":"A supported claim.","citations":["E1"]}}. '
-            "Every answer block must cite only the supplied evidence IDs that support its text. "
+            "Return ONLY one JSON object with a blocks array. No Markdown fences, HTML or surrounding prose. "
+            'Use exactly this shape: {{"blocks":[{{"kind":"answer","text":"First supported claim.",'
+            '"citations":["E1"]}},{{"kind":"answer","text":"A separate supported claim.","citations":["E2"]}}]}}. '
+            "Put each distinct factual sentence or closely related pair of sentences in its own block. "
+            "Each block must cite only the evidence IDs that directly support that block, usually one to three. "
+            "Do not combine a long answer and all its citations in one block. "
             "Do not write evidence IDs, citation markers or source links inside text; the application renders them. "
             "For insufficient evidence return only "
-            '{{"kind":"insufficient_evidence","text":"","citations":[]}}. '
+            '{{"blocks":[{{"kind":"insufficient_evidence","text":"","citations":[]}}]}}. '
             "Use the question's language and at most 1024 tokens.\n\nUntrusted evidence:\n{context}"
         )
         qa_prompt = ChatPromptTemplate.from_messages([

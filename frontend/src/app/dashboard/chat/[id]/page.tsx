@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useChat } from "ai/react";
-import { Send, User, Bot } from "lucide-react";
+import { Send, User } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { api, ApiError, authenticatedFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -127,11 +127,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                 key={message.id}
                 className="flex justify-start items-start space-x-2"
               >
-                <div className="w-8 h-8 flex items-center justify-center">
+                <div className="w-8 h-8 shrink-0 flex items-center justify-center">
                   <img
-                    src="/logo.png"
+                    src="/ragri-assistant.svg"
+                    width={32}
+                    height={32}
                     className="h-8 w-8 rounded-full"
-                    alt="rAGRI search"
+                    alt="rAGRI search research assistant"
                   />
                 </div>
                 <div className="max-w-[80%] rounded-lg px-4 py-2 text-accent-foreground">

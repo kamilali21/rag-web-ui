@@ -15,6 +15,26 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 ## Current Gate: Phase 11 Complete — Next: Phase 12 Structured Summary
 
+### Chat citation placement and branding - 9 October 2026
+
+- Completed the interrupted corpus-chat checkpoint: `ac5a04f`, tagged
+  `researchiq-chat-corpus-20261008`.
+- Keep provider JSON object mode, with short separately cited answer blocks.
+  Validate the entire envelope before output; preserve reference validation,
+  source rechecks, bounded output, legacy block compatibility and saved messages.
+- Replaced the RAG Web UI chat avatar with a native emerald book/lime leaf mark.
+  No frontend request, authentication, dependency or schema changes.
+- Backend **322 passed / 40 skips**; disposable MySQL **126 passed**. Live
+  current Both-scope conversation replay produced five separately cited claims
+  and reopened identically; temporary fixtures removed, original rows preserved.
+- Frontend **74 passed**, TypeScript and production build passed. Deployed image
+  `researchiq-frontend:chat-polish-20261009`; live bundle/SVG/hero checks passed.
+  Final warm cited-answer/reopen check passed in 16.09s. Checkpoint tag:
+  `researchiq-chat-polish-20261009`. Browser visual acceptance remains unavailable.
+- Detailed status, phase evidence, security boundaries and next formal task:
+  `docs/project-status-20261009.md`. Summary/Compare/Analyze/Gap workflows were
+  assessed but not begun; Phase 12 and later phases remain unfinished.
+
 ### Corpus-chat runtime correction - 8 October 2026
 
 - Fixed missing embedding weights after container recreation with a persistent,

@@ -24,6 +24,37 @@ def test_structured_blocks_handle_arbitrary_transport_boundaries():
     assert asyncio.run(collect()) == ["Measured benefit. [citation:2]\n\n", INSUFFICIENT + "\n\n"]
 
 
+def test_json_response_keeps_each_sentence_with_its_own_citations():
+    async def collect():
+        async def chunks():
+            for char in json.dumps({"blocks": [
+                {"text": "First finding.", "citations": ["E2", "E2"]},
+                {"text": "Different finding.", "citations": ["E1"]}]}):
+                yield char
+        return [text async for text in validated_blocks(chunks(), ["E1", "E2"])]
+    assert asyncio.run(collect()) == ["First finding. [citation:2]\n\n", "Different finding. [citation:1]\n\n"]
+
+
+@pytest.mark.parametrize("value", [
+    {"blocks": []},
+    {"blocks": [{"text": "Claim", "citations": ["E1"], "url": "https://invalid.test"}]},
+    {"blocks": [{"text": "Claim", "citations": ["E1"]}], "extra": "unchecked"},
+    {"blocks": [{"text": "Claim", "citations": ["E1"]}] * 33},
+    {"blocks": [{"text": "Claim", "citations": ["E1"]}, {"kind": "insufficient_evidence"}]},
+    {"blocks": [{"text": "Claim", "citations": ["E1"]}, {"text": "Invalid", "citations": ["E99"]}]},
+])
+def test_invalid_response_envelope_never_emits_partial_claims(value):
+    emitted = []
+    async def collect():
+        async def chunks():
+            yield json.dumps(value)
+        async for item in validated_blocks(chunks(), ["E1"]):
+            emitted.append(item)
+    with pytest.raises(ValueError):
+        asyncio.run(collect())
+    assert not emitted
+
+
 @pytest.mark.parametrize("value", [
     {"text": "Uncited claim"}, {"text": "Claim", "citations": ["E99"]},
     {"text": "Claim [citation:1]", "citations": ["E1"]},
@@ -68,6 +99,21 @@ def test_create_stream_and_reopen_use_persisted_scope(sources, provider, monkeyp
     expected = set(resolve_scope(w.db, w.alice, scope))
     assert set(provider.stores) == expected
     assert w.client.get(f"/api/chat/{chat_id}", headers=w.headers(w.bob)).status_code == 404
+
+
+def test_sentence_citations_stream_and_reopen_in_the_same_order(sources, provider, monkeypatch):
+    w = sources
+    response_json = json.dumps({"blocks": [
+        {"text": "First supported sentence.", "citations": ["E1"]},
+        {"text": "Second supported sentence.", "citations": ["E1"]}]})
+    monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: FakeListChatModel(responses=[response_json]))
+    response = w.client.post(f"/api/chat/{w.chat.id}/messages", headers=w.headers(w.alice),
+        json={"messages": [{"role": "user", "content": "Explain the findings."}]})
+    assert '3:' not in response.text and 'd:' in response.text
+    content = ''.join(json.loads(line[2:]) for line in response.text.splitlines() if line.startswith('0:'))
+    assert content.endswith("First supported sentence. [citation:1]\n\nSecond supported sentence. [citation:1]\n\n")
+    saved = w.client.get(f"/api/chat/{w.chat.id}", headers=w.headers(w.alice)).json()
+    assert saved['messages'][-1]['content'] == content
 
 
 def test_public_chat_needs_no_private_collection_and_foreign_selection_is_rejected(sources):
