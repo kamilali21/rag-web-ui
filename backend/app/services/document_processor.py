@@ -2,11 +2,10 @@ import logging
 import os
 import hashlib
 import tempfile
-import traceback
-from datetime import datetime
 from app.db.session import SessionLocal
 from io import BytesIO
-from typing import Optional, List, Dict, Set
+from typing import Optional, List, Dict
+from zipfile import BadZipFile, ZipFile
 from fastapi import UploadFile
 from langchain_community.document_loaders import (
     PyPDFLoader,
@@ -17,20 +16,25 @@ from langchain_community.document_loaders import (
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document as LangchainDocument
 from pydantic import BaseModel
-from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.minio import get_minio_client
 from app.models.knowledge import ProcessingTask, Document, DocumentChunk
 from app.services.chunk_record import ChunkRecord
-import uuid
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import UnstructuredFileLoader
 from minio.error import MinioException
-from minio import Minio
 from minio.commonconfig import CopySource
 from app.services.vector_store import VectorStoreFactory
 from app.services.embedding.embedding_factory import EmbeddingsFactory
+from app.schemas.knowledge import PROCESSING_FAILURE
+
+
+def validate_docx_archive(source):
+    """Apply the same expansion limit before public or private DOCX parsing."""
+    with ZipFile(source) as archive:
+        entries = archive.infolist()
+        if ("word/document.xml" not in archive.namelist() or len(entries) > 5000
+                or sum(entry.file_size for entry in entries) > 100 * 1024 * 1024):
+            raise BadZipFile("Invalid or oversized DOCX document")
 
 class UploadResult(BaseModel):
     file_path: str
@@ -201,6 +205,7 @@ async def preview_document(file_path: str, chunk_size: int = 1000, chunk_overlap
         if ext == ".pdf":
             loader = PyPDFLoader(temp_path)
         elif ext == ".docx":
+            validate_docx_archive(temp_path)
             loader = Docx2txtLoader(temp_path)
         elif ext == ".md":
             loader = UnstructuredMarkdownLoader(temp_path)
@@ -288,6 +293,7 @@ def process_document_background(
             if ext == ".pdf":
                 loader = PyPDFLoader(local_temp_path)
             elif ext == ".docx":
+                validate_docx_archive(local_temp_path)
                 loader = Docx2txtLoader(local_temp_path)
             elif ext == ".md":
                 loader = UnstructuredMarkdownLoader(local_temp_path)
@@ -426,14 +432,10 @@ def process_document_background(
         
     except Exception as e:
         db.rollback()
-        # Added by ChatGPT: public jobs expose no parser/provider internals in task errors or logs.
-        if retain_source:
-            logger.error("Public task %s failed (%s)", task_id, type(e).__name__)
-        else:
-            logger.error(f"Task {task_id}: Error processing document: {str(e)}")
-            logger.error(f"Task {task_id}: Stack trace: {traceback.format_exc()}")
+        # Parser/provider exceptions can contain secrets for private jobs too.
+        logger.error("Task %s failed (%s)", task_id, type(e).__name__)
         task.status = "failed"
-        task.error_message = "Public document processing failed" if retain_source else str(e)
+        task.error_message = "Public document processing failed" if retain_source else PROCESSING_FAILURE
         db.commit()
         
         # 清理临时文件

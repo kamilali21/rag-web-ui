@@ -1,30 +1,28 @@
 import hashlib
 from typing import List, Any, Dict, Literal
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
 from urllib.parse import quote
 from sqlalchemy.orm import Session
-from langchain_chroma import Chroma
-from sqlalchemy import text
 import logging
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
-import time
 
 
 from app.db.session import get_db
 from app.models.user import User
 from app.core.security import get_current_user
-from app.models.knowledge import KnowledgeBase, Document, ProcessingTask, DocumentChunk, DocumentUpload
+from app.models.knowledge import KnowledgeBase, Document, ProcessingTask, DocumentUpload
 from app.schemas.knowledge import (
     KnowledgeBaseCreate,
     KnowledgeBaseResponse,
     KnowledgeBaseUpdate,
     DocumentResponse,
-    PreviewRequest
+    PreviewRequest,
+    PROCESSING_FAILURE,
 )
-from app.services.document_processor import process_document_background, upload_document, preview_document, PreviewResult
+from app.services.document_processor import process_document_background, preview_document, PreviewResult
 from app.core.config import settings
 from app.core.minio import get_minio_client
 from minio.error import MinioException
@@ -38,6 +36,7 @@ from app.services import private_library
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # Match the existing reverse-proxy request limit.
 
 class TestRetrievalRequest(BaseModel):
     query: str
@@ -268,13 +267,17 @@ async def upload_kb_documents(
     private_library.lock_collection(db, current_user, kb_id)
     
     results = []
+    uploaded_bytes = 0
     for file in files:
         # A filename is an object-path component, never a path supplied by a client.
         if not file.filename or "/" in file.filename or "\\" in file.filename or len(file.filename) > 200:
             raise HTTPException(400, "Use a filename without path separators, up to 200 characters")
         private_library.lock_collection(db, current_user, kb_id)
         # 1. 计算文件 hash
-        file_content = await file.read()
+        file_content = await file.read(MAX_UPLOAD_BYTES - uploaded_bytes + 1)
+        uploaded_bytes += len(file_content)
+        if uploaded_bytes > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, "Upload request exceeds the 100 MiB limit")
         file_hash = hashlib.sha256(file_content).hexdigest()
         
         # 2. 检查是否存在完全相同的文件（名称和hash都相同）
@@ -392,8 +395,6 @@ async def process_kb_documents(
     """
     Process multiple documents asynchronously.
     """
-    start_time = time.time()
-    
     private_library.lock_collection(db, current_user, kb_id)
 
     task_info = []
@@ -539,7 +540,7 @@ async def get_processing_tasks(
         task.id: {
             "document_id": task.document_id,
             "status": task.status,
-            "error_message": task.error_message,
+            "error_message": PROCESSING_FAILURE if task.error_message else None,
             "upload_id": task.document_upload_id,
             "file_name": task.document_upload.file_name if task.document_upload else None
         }

@@ -4,13 +4,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
-from app.models.chat import Chat, Message
+from app.models.chat import Chat
 from app.models.knowledge import KnowledgeBase
 from app.schemas.chat import (
     ChatCreate,
     ChatResponse,
-    ChatUpdate,
-    MessageCreate,
     MessageResponse
 )
 from app.core.security import get_current_user

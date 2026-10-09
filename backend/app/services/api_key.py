@@ -4,7 +4,7 @@ import secrets
 from sqlalchemy.orm import Session
 
 from app.models.api_key import APIKey
-from app.schemas.api_key import APIKeyCreate, APIKeyUpdate
+from app.schemas.api_key import APIKeyUpdate
 
 class APIKeyService:
     @staticmethod
@@ -58,4 +58,4 @@ class APIKeyService:
         db.add(api_key)
         db.commit()
         db.refresh(api_key)
-        return api_key 
+        return api_key

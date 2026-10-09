@@ -7,7 +7,7 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import PurePosixPath
 from uuid import uuid4
-from zipfile import BadZipFile, ZipFile
+from zipfile import BadZipFile
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import and_, or_, func
@@ -24,7 +24,7 @@ from app.models import AcademicDocumentMetadata, Document, DocumentChunk, Knowle
 from app.models.knowledge import DocumentUpload, ProcessingTask
 from app.models.research import Bookmark, Department
 from app.services.authorization import require_active_user, require_admin, require_corpus_admin
-from app.services.document_processor import process_document_background
+from app.services.document_processor import process_document_background, validate_docx_archive
 from app.services.embedding.embedding_factory import EmbeddingsFactory
 from app.services.vector_store import VectorStoreFactory
 
@@ -274,10 +274,7 @@ def _stage_upload(db: Session, actor: User, corpus: KnowledgeBase, name: str, co
         raise HTTPException(400, "Invalid PDF document")
     if ext == ".docx":
         try:
-            with ZipFile(BytesIO(content)) as archive:
-                if ("word/document.xml" not in archive.namelist() or len(archive.infolist()) > 5000
-                        or sum(item.file_size for item in archive.infolist()) > 100 * 1024 * 1024):
-                    raise BadZipFile()
+            validate_docx_archive(BytesIO(content))
         except BadZipFile:
             raise HTTPException(400, "Invalid or oversized DOCX document") from None
     # Serialize names with rename/upload. No lock is held across background ingestion.

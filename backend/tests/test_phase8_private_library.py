@@ -1,6 +1,8 @@
 """Private catalog and lifecycle acceptance using the real ORM and ingestion worker."""
 from datetime import datetime
+from io import BytesIO
 from unittest.mock import MagicMock
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 from app.models.knowledge import Document, DocumentChunk, DocumentUpload, ProcessingTask
@@ -164,3 +166,53 @@ def test_whole_collection_cleanup_failure_is_retryable(library):
     assert w.db.get(Document, task.document_id)
     w.storage.fail_delete = False
     assert w.client.delete(path, headers=w.headers(w.alice)).status_code == 200
+
+
+def test_private_processing_errors_are_redacted_on_every_read(library):
+    w = library
+    w.store.fail_add = True
+    task = upload(w)
+    assert task.status == "failed" and "secret" not in task.error_message
+    # Also protect historical records written before exception sanitization.
+    task.error_message = "SECRET provider token and internal path"
+    w.db.commit()
+    base = f"/api/knowledge-base/{w.alice_kb.id}"
+    for path in ["/api/knowledge-base", base, base + f"/documents/{task.document_id}",
+                 base + f"/documents/tasks?task_ids={task.id}"]:
+        result = w.client.get(path, headers=w.headers(w.alice))
+        assert result.status_code == 200, result.text
+        assert "SECRET" not in result.text and "Document processing failed" in result.text
+
+
+def test_private_upload_reads_are_bounded_before_writing_storage(library, monkeypatch):
+    w = library
+    monkeypatch.setattr(knowledge_base, "MAX_UPLOAD_BYTES", 32)
+    response = w.client.post(f"/api/knowledge-base/{w.alice_kb.id}/documents/upload",
+        files={"files": ("oversized.txt", b"x" * 33, "text/plain")}, headers=w.headers(w.alice))
+    assert response.status_code == 413
+    assert not w.storage.objects
+    assert not w.db.query(DocumentUpload).filter_by(file_name="oversized.txt").first()
+
+
+def test_private_docx_expansion_is_rejected_before_parser_or_embeddings(library, monkeypatch):
+    w = library
+    compressed = BytesIO()
+    with ZipFile(compressed, "w", compression=ZIP_DEFLATED) as archive:
+        with archive.open("word/document.xml", "w") as member:
+            for _ in range(101):
+                member.write(b"x" * (1024 * 1024))
+    assert len(compressed.getvalue()) < 1024 * 1024
+    parser, embeddings = MagicMock(), MagicMock()
+    monkeypatch.setattr(document_processor, "Docx2txtLoader", parser)
+    monkeypatch.setattr(document_processor.EmbeddingsFactory, "create", embeddings)
+    base = f"/api/knowledge-base/{w.alice_kb.id}/documents"
+    staged = w.client.post(base + "/upload", files={"files": ("oversized.docx", compressed.getvalue(),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}, headers=w.headers(w.alice))
+    assert staged.status_code == 200
+    processed = w.client.post(base + "/process", json=staged.json(), headers=w.headers(w.alice))
+    assert processed.status_code == 200
+    w.db.rollback()
+    task = w.db.get(ProcessingTask, processed.json()["tasks"][0]["task_id"])
+    assert task.status == "failed" and task.document_id is None
+    parser.assert_not_called()
+    embeddings.assert_not_called()

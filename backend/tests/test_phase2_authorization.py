@@ -204,7 +204,7 @@ def test_unavailable_identities_rejected_by_password_jwt_and_api_key(world, acto
     user = getattr(w, actor)
     assert w.client.post("/api/auth/token", data={"username": user.username, "password": "phase2-test-password"}).status_code == 401
     assert w.client.post("/api/auth/test-token", headers=w.headers(user)).status_code == 401
-    with patch("app.api.openapi.knowledge.EmbeddingsFactory.create") as embeddings:
+    with patch("app.services.retrieval_scope.EmbeddingsFactory.create") as embeddings:
         response = w.client.get(f"/openapi/knowledge/{w.alice_kb.id}/query", params={"query": "secret"}, headers={"X-API-Key": f"phase2-{user.username}"})
     assert response.status_code == 401
     embeddings.assert_not_called()
@@ -317,7 +317,7 @@ def test_cleanup_is_owner_scoped_even_for_admin(world):
 
 def test_api_key_retrieval_and_key_management_preserve_ownership(world):
     w = world
-    from app.api.openapi import knowledge
+    from app.services import retrieval_scope as knowledge
     for user in [w.alice, w.professor, w.superuser]:
         with patch.object(knowledge.EmbeddingsFactory, "create") as embeddings:
             result = w.client.get(f"/openapi/knowledge/{w.bob_kb.id}/query", params={"query": "secret"}, headers={"X-API-Key": f"phase2-{user.username}"})
@@ -330,7 +330,7 @@ def test_api_key_retrieval_and_key_management_preserve_ownership(world):
 
 def test_owner_access_and_api_key_retrieval_still_work(world):
     w = world
-    from app.api.openapi import knowledge
+    from app.services import retrieval_scope as knowledge
     w.db.add(ProcessingTask(knowledge_base_id=w.alice_kb.id, document_id=w.alice_doc.id, status="completed"))
     w.db.commit()
     assert w.client.get(f"/api/knowledge-base/{w.alice_kb.id}", headers=w.headers(w.alice)).status_code == 200
