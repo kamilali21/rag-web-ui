@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Copy, Check, List } from "lucide-react";
-import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,14 +49,12 @@ export interface APIKeyUpdate {
 
 export default function APIKeysPage() {
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAPIListDialogOpen, setIsAPIListDialogOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const { toast } = useToast();
-  const router = useRouter();
 
   // 获取 API Keys 列表
   const fetchAPIKeys = async () => {
@@ -70,8 +67,6 @@ export default function APIKeysPage() {
         description: "Failed to fetch API keys",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -118,9 +113,7 @@ export default function APIKeysPage() {
   // 删除 API Key
   const deleteAPIKey = async (id: number) => {
     try {
-      const response = await api.delete(`/api/api-keys/${id}`);
-
-      if (!response.ok) throw new Error("Failed to delete API key");
+      await api.delete(`/api/api-keys/${id}`);
 
       setApiKeys(apiKeys.filter((key) => key.id !== id));
       toast({
@@ -139,7 +132,7 @@ export default function APIKeysPage() {
   // 更新 API Key 状态
   const toggleAPIKeyStatus = async (id: number, currentStatus: boolean) => {
     try {
-      const response = await api.put(`/api/api-keys/${id}`, {
+      await api.put(`/api/api-keys/${id}`, {
         is_active: !currentStatus,
       });
 

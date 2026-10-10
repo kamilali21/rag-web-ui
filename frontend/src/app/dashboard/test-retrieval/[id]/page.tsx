@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,7 +23,8 @@ interface KnowledgeBase {
   description: string;
 }
 
-export default function TestPage({ params }: { params: { id: string } }) {
+export default function TestPage() {
+  const params = useParams<{ id: string }>();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBase | null>(

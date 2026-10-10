@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import {
   Upload,
@@ -52,7 +52,8 @@ interface TaskStatus {
   file_name: string;
 }
 
-export default function UploadPage({ params }: { params: { id: string } }) {
+export default function UploadPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const [files, setFiles] = useState<FileStatus[]>([]);
   const [processingTasks, setProcessingTasks] = useState<ProcessingTask[]>([]);
@@ -241,10 +242,6 @@ export default function UploadPage({ params }: { params: { id: string } }) {
   const removeFile = (file: File) => {
     setFiles((prev) => prev.filter((f) => f.file !== file));
   };
-
-  const allCompleted =
-    files.length > 0 &&
-    files.every((f) => f.status === "completed" || f.status === "error");
 
   const hasUploadedFiles = files.some((f) => f.status === "uploaded");
   return (

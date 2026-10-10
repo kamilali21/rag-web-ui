@@ -8,11 +8,4 @@ module.exports = {
     const origin = process.env.RAG_API_PROXY_URL;
     return origin ? [{ source: "/api/:path*", destination: `${origin.replace(/\/$/, "")}/api/:path*` }] : [];
   },
-  experimental: {
-    // This is needed for standalone output to work correctly
-    outputFileTracingRoot: undefined,
-    outputStandalone: true,
-    skipMiddlewareUrlNormalize: true,
-    skipTrailingSlashRedirect: true,
-  },
 };

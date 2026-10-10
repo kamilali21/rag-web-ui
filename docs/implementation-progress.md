@@ -15,6 +15,19 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 
 ## Current Gate: Phase 11 Complete — Next: Phase 12 Structured Summary
 
+### Security cleanup and deployment preparation - 9-10 October 2026
+
+Maintenance scope and verification are recorded in
+[security-cleanup-20261009.md](security-cleanup-20261009.md). The migration helpers
+and recovery manifest were committed at `48761da`
+(`researchiq-windows-migration-20261009`); private SQL dumps remain local/ignored.
+The separate production Compose configuration is prepared for a future domain
+and server. It does not mark Phase 19 or 21 complete or advance the feature gate.
+Frontend checkpoint image `researchiq-frontend:security-20261010` builds;
+Jest **76/76** and TypeScript pass. The current Windows frontend was left on
+its prior image. ESLint has existing errors and warnings documented in the
+cleanup report; this checkpoint does not claim a clean lint run or public launch.
+
 ### Chat citation placement and branding - 9 October 2026
 
 - Completed the interrupted corpus-chat checkpoint: `ac5a04f`, tagged

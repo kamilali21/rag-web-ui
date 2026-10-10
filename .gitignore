@@ -32,6 +32,7 @@ chroma_db/
 
 # Node/Next.js
 node_modules/
+.pnpm-store/
 .next/
 # Added by ChatGPT: isolated frontend preview/build verification outputs.
 .next-preview/

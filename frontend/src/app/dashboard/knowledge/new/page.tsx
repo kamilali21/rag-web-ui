@@ -6,14 +6,6 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
-interface KnowledgeBase {
-  id: number;
-  name: string;
-  description: string;
-  documents: any[];
-  created_at: string;
-}
-
 export default function NewKnowledgeBasePage() {
   const router = useRouter();
   const [error, setError] = useState("");

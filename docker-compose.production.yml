@@ -1,0 +1,110 @@
+# Standalone production configuration; do not merge with the Windows/dev file.
+# docker compose --env-file .env.production -f docker-compose.production.yml ...
+name: ${COMPOSE_PROJECT_NAME:-researchiq}
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?Set the tested backend image tag or digest}
+    env_file: ${RESEARCHIQ_PRODUCTION_ENV:-.env.production}
+    environment:
+      MYSQL_SERVER: db
+      MINIO_ENDPOINT: minio:9000
+      CHROMA_DB_HOST: chromadb
+      CHROMA_DB_PORT: "8000"
+      EMAIL_OTP_ENABLED: "true"
+      AUTH_ORIGIN: https://${PUBLIC_DOMAIN:?Set the public domain}
+      AUTH_ALLOW_LOCAL_HTTP: "false"
+      AUTH_TRUSTED_PROXIES: '["${PROXY_IP:-172.30.240.10}/32"]'
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8000", --no-proxy-headers]
+    volumes:
+      - uploads:/app/uploads
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      chromadb:
+        condition: service_started
+    networks: [app_network, data_network]
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+
+  frontend:
+    image: ${FRONTEND_IMAGE:?Set the tested frontend image tag or digest}
+    networks: [app_network]
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+
+  db:
+    image: mysql@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set the database name}
+      MYSQL_USER: ${MYSQL_USER:?Set a non-root application user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set the application database password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set a separate root database password}
+    volumes: [mysql_data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, localhost]
+      timeout: 20s
+      retries: 10
+    networks: [data_network]
+    restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma@sha256:1e0b73a187a28757c572acba508c46f48c9e8b0acaf5c20e6d95cdedce1acdf6
+    volumes: [chroma_data:/data]
+    networks: [data_network]
+    restart: unless-stopped
+
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?Set the storage access key}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?Set the storage secret}
+    command: server --console-address ":9001" /data
+    volumes: [minio_data:/data]
+    networks: [data_network]
+    restart: unless-stopped
+
+  nginx:
+    image: nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:?Set the public domain}
+      NGINX_ENVSUBST_FILTER: ^PUBLIC_DOMAIN$$
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${TLS_DIRECTORY:?Set the directory containing fullchain.pem and privkey.pem}:/etc/nginx/tls:ro
+    depends_on: [frontend, backend]
+    networks:
+      app_network:
+        ipv4_address: ${PROXY_IP:-172.30.240.10}
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+
+# Explicit external volumes prevent silently starting against new empty stores.
+volumes:
+  mysql_data:
+    external: true
+    name: ${MYSQL_VOLUME:?Set the prepared MySQL volume}
+  chroma_data:
+    external: true
+    name: ${CHROMA_VOLUME:?Set the prepared Chroma volume}
+  minio_data:
+    external: true
+    name: ${MINIO_VOLUME:?Set the prepared MinIO volume}
+  huggingface_cache:
+    external: true
+    name: ${HF_CACHE_VOLUME:?Set the prepared embedding cache volume}
+  uploads:
+    external: true
+    name: ${UPLOADS_VOLUME:?Set the prepared upload staging volume}
+networks:
+  data_network:
+    internal: true
+  app_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${APP_SUBNET:-172.30.240.0/24}

@@ -38,11 +38,16 @@ export default function EmailLogin({ initialEmail = "", initialPassword = "", pu
       } else {
         const result = await api.post("/api/auth/request-otp", { email, purpose }, { redirectOnUnauthorized: false });
         setSent(true); setCode(""); setNotice(result.message);
-        setRetryAt(Date.now() + result.retry_after * 1000);
+        const cooldown = Math.max(0, Number(result.retry_after) || 0);
+        setSeconds(cooldown);
+        setRetryAt(Date.now() + cooldown * 1000);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Sign-in failed. Please try again.");
-      if (err instanceof ApiError && err.retryAfter) setRetryAt(Date.now() + err.retryAfter * 1000);
+      if (err instanceof ApiError && err.retryAfter) {
+        setSeconds(err.retryAfter);
+        setRetryAt(Date.now() + err.retryAfter * 1000);
+      }
     } finally { setBusy(false); }
   };
 

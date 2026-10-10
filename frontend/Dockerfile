@@ -1,23 +1,19 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 ### Dependencies ###
 FROM base AS deps
-RUN apk add --no-cache libc6-compat git
 
-# Setup pnpm environment
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN npm install -g pnpm@8
+RUN npm install -g pnpm@8.15.9
 
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --no-frozen-lockfile
+RUN --mount=type=cache,id=researchiq-pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --store-dir=/pnpm/store
 
 # Builder
 FROM base AS builder
 
-RUN npm install -g pnpm@8
+RUN npm install -g pnpm@8.15.9
 
 WORKDIR /app
 
@@ -30,11 +26,11 @@ RUN pnpm build
 FROM base AS runner
 
 # Set NODE_ENV to production
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
 # Disable Next.js telemetry
 # Learn more here: https://nextjs.org/telemetry
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Set correct permissions for nextjs user and don't run as root
 RUN addgroup nodejs
@@ -52,8 +48,8 @@ USER nextjs
 
 # Exposed port (for orchestrators and dynamic reverse proxies)
 EXPOSE 3000
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD wget --spider -q http://localhost:3000/ || exit 1
 
 # Run the nextjs app

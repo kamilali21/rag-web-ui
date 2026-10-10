@@ -1,21 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { useChat } from "ai/react";
+import { useParams, useRouter } from "next/navigation";
+import { useChat } from "@ai-sdk/react";
 import { Send, User } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { api, ApiError, authenticatedFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Answer } from "@/components/chat/answer";
 import { decodeChatAnswer } from "@/lib/citations";
-
-interface Message {
-  id: string;
-  role: "assistant" | "user" | "system" | "data";
-  content: string;
-  citations?: Citation[];
-}
 
 interface ChatMessage {
   id: number;
@@ -38,13 +31,14 @@ interface Citation {
 }
 
 // Extend the default useChat message type
-declare module "ai/react" {
+declare module "@ai-sdk/react" {
   interface Message {
     citations?: Citation[];
   }
 }
 
-export default function ChatPage({ params }: { params: { id: string } }) {
+export default function ChatPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -53,7 +47,6 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
   const {
     messages,
-    data,
     input,
     handleInputChange,
     handleSubmit,
