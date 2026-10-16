@@ -3,6 +3,7 @@ import "./globals.css";
 import "highlight.js/styles/github.css";
 // 如果使用 App Router
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/components/theme-provider";
 
 // Added by ChatGPT: use the reference's compact sans-serif through the local CSS font stack.
 
@@ -19,8 +20,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
-        <Toaster />
+        <ThemeProvider>
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

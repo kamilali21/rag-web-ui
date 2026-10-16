@@ -28,6 +28,9 @@ const get = async (url: string): Promise<any> => {
   if (url === "/api/corpus/documents/9") return document;
   if (url === "/api/corpus/documents/9/metadata") return metadata;
   if (url === "/api/corpus/tasks/14") return { id: 14, status: "completed" };
+  if (url.startsWith("/api/corpus/tasks?")) return [];
+  if (url === "/api/researcher/admin/count") return { count: admin ? 3 : 0 };
+  if (url === "/api/researcher/admin") return [];
   throw new Error(`Unexpected API ${url}`);
 };
 
@@ -45,6 +48,7 @@ test("public toggle reads the shared corpus, hides researcher writes and returns
   expect(screen.getByText("Irrigation Efficiency")).toBeInTheDocument();
   expect(screen.queryByText("Private notes.pdf")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Add Documents" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Requests" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Manage collections" })).not.toBeInTheDocument();
   expect(api.get).toHaveBeenCalledWith("/api/corpus/documents?limit=21", expect.anything());
   await user.click(screen.getByRole("button", { name: "Private" }));
@@ -130,10 +134,13 @@ test("query failure and empty evidence are distinct states", async () => {
   await screen.findByText("No published evidence found.");
 });
 
-test("only authorized admins get the basic public uploader; completion remains a draft", async () => {
+test("only authorized admins get Add Documents inside Manage corpus; completion remains a draft", async () => {
   admin = true;
   const user = await openPublic();
   jest.mocked(api.post).mockResolvedValue({ id: 14, status: "pending" });
+  expect(screen.queryByRole("button", { name: "Add Documents" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Manage corpus" }));
+  await screen.findByRole("heading", { name: "Manage corpus" });
   await user.click(screen.getByRole("button", { name: "Add Documents" }));
   const file = new File(["test"], "research.txt", { type: "text/plain" });
   const input = screen.getByLabelText("PDF, DOCX, TXT or MD (up to 20 MB)") as HTMLInputElement;
@@ -150,10 +157,21 @@ test("only authorized admins get the basic public uploader; completion remains a
   expect(screen.queryByRole("button", { name: /^(publish|delete|edit)$/i })).not.toBeInTheDocument();
 });
 
+test("corpus admins see the pending badge and can open publication review", async () => {
+  admin = true;
+  const user = await openPublic();
+  expect(await screen.findByLabelText("3 pending requests")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Requests/ }));
+  expect(await screen.findByRole("heading", { name: "Publication requests" })).toBeInTheDocument();
+  expect(api.get).toHaveBeenCalledWith("/api/researcher/admin", expect.anything());
+});
+
 test("a revoked admin loses the uploader on server denial", async () => {
   admin = true;
   const user = await openPublic();
   jest.mocked(api.post).mockRejectedValue(new ApiError(403, "Corpus administrator required"));
+  await user.click(screen.getByRole("button", { name: "Manage corpus" }));
+  await screen.findByRole("heading", { name: "Manage corpus" });
   await user.click(screen.getByRole("button", { name: "Add Documents" }));
   const input = screen.getByLabelText("PDF, DOCX, TXT or MD (up to 20 MB)") as HTMLInputElement;
   await user.upload(input, new File(["test"], "test.txt", { type: "text/plain" }));

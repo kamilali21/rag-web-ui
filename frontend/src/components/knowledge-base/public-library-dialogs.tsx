@@ -50,6 +50,11 @@ export function PublicDocumentDetails({ id, onClose, manage = false }: { id: num
           </dl>
           {!!metadata.keywords?.length && <ul className="public-keywords" aria-label="Keywords">{metadata.keywords.map(word => <li key={word}>{word}</li>)}</ul>}
           {metadata.abstract && <section className="public-abstract"><h3>Abstract</h3><p>{metadata.abstract}</p></section>}
+          {details.document.researcher_card && <section className="public-researcher-card" aria-label="Researcher profile">
+            {details.document.researcher_card.photo_url && <img src={details.document.researcher_card.photo_url} alt="" />}
+            <div><h3>{details.document.researcher_card.full_name}</h3><p>{details.document.researcher_card.department_name} · {details.document.researcher_card.degree}</p>
+              <p>{details.document.researcher_card.research_area}</p></div>
+          </section>}
           <div className="public-dialog-actions">
             {/* Cookie-authenticated links retain server authorization and never expose MinIO paths. */}
             <Button asChild><a href={`/api/corpus/documents/${id}/content?inline=true${manage ? "&include_unpublished=true" : ""}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} /> Open document</a></Button>

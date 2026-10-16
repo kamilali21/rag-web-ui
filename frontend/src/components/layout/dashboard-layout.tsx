@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Book, BookOpen, Home, LogOut, Menu, MessageSquare, Sparkles, User } from "lucide-react";
+import { Book, BookOpen, CircleUser, Home, LogOut, Menu, MessageSquare, Sparkles } from "lucide-react";
 import Breadcrumb from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { api, ApiError } from "@/lib/api";
+import { useTheme } from "@/components/theme-provider";
 
 // Added by ChatGPT: shared navigation for the reference sidebar and accessible mobile drawer.
 const navigation = [
@@ -15,7 +16,7 @@ const navigation = [
   { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
   // Added by ChatGPT: frontend research workspace in desktop and mobile navigation.
   { name: "Insights", href: "/dashboard/insights", icon: Sparkles },
-  { name: "API Keys", href: "/dashboard/api-keys", icon: User },
+  { name: "Profile", href: "/dashboard/profile", icon: CircleUser },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -25,6 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState("");
   const [signingOut, setSigningOut] = useState(false);
+  const { isDark } = useTheme();
 
   // Added by ChatGPT: validate the server session before rendering protected content.
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   </div></main>;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isDark ? " dark" : ""}`}>
       {/* Added by ChatGPT: Radix manages focus trapping, Escape, and return focus on mobile. */}
       <a href="#main-content" className="skip-link">Skip to content</a>
       <aside className="app-sidebar">{sidebar}</aside>
@@ -110,6 +112,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 export const dashboardConfig = {
   mainNav: [],
   sidebarNav: navigation.map(({ name, href }) => ({
-    title: name, href, icon: name === "Library" ? "database" : name === "Chat" ? "messageSquare" : name === "Insights" ? "sparkles" : name === "Dashboard" ? "home" : "key",
+    title: name, href, icon: name === "Library" ? "database" : name === "Profile" ? "user" : name === "Chat" ? "messageSquare" : name === "Insights" ? "sparkles" : name === "Dashboard" ? "home" : "key",
   })),
 };

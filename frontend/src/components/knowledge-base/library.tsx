@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, ChevronLeft, ChevronRight, FolderCog, Loader2, LockKeyhole, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, FolderCog, Loader2, LockKeyhole, Plus, RefreshCw, Search, Send, Settings, Trash2, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { documentSize, documentStatus, filenameFilters, LibraryCollection, LibraryDocument } from "@/lib/library";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { DocumentUploadSteps } from "./document-upload-steps";
 import { LibraryTable } from "./library-table";
 import { PublicLibrary } from "./public-library";
+import { PublicationRequestDialog } from "./researcher-publication-dialogs";
 
 // Added by ChatGPT: a document-first view over the existing owner-scoped knowledge-base APIs.
 export function Library({ knowledgeBaseId }: { knowledgeBaseId?: number }) {
@@ -33,6 +34,7 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
   const [processingFilter, setProcessingFilter] = useState("all");
   const [collectionFilter, setCollectionFilter] = useState("all");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [publicationOpen, setPublicationOpen] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<number | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<LibraryDocument | null>(null);
@@ -147,9 +149,14 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
       <div className="library-heading">
         <div className="library-title"><h1>Library</h1><LockKeyhole size={27} strokeWidth={1.8} aria-label="Private library" /></div>
         {scopeControl}
-        <Button className="library-upload-action primary-action premium-action" onClick={openUpload} disabled={loading || !!error}>
-          <Plus size={21} strokeWidth={1.6} aria-hidden="true" /> Add Documents
-        </Button>
+        <div className="library-heading-actions">
+          <Button className="primary-action premium-action" onClick={() => setPublicationOpen(true)} disabled={loading || !!error}>
+            <Send size={18} aria-hidden="true" /> Request publication
+          </Button>
+          <Button className="primary-action premium-action" onClick={openUpload} disabled={loading || !!error}>
+            <Plus size={21} strokeWidth={1.6} aria-hidden="true" /> Add Documents
+          </Button>
+        </div>
       </div>
       <div className="library-search">
         <Search size={23} strokeWidth={1.6} aria-hidden="true" />
@@ -204,6 +211,8 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
           {actionError && <p role="alert" className="text-destructive">{actionError}</p>}
         </DialogContent>
       </Dialog>
+
+      <PublicationRequestDialog open={publicationOpen} onOpenChange={setPublicationOpen} onCreated={() => setRefresh(value => value + 1)} />
 
       {/* Added by ChatGPT: preserve collection creation, management, retrieval testing, and deletion. */}
       <Dialog open={manageOpen} onOpenChange={setManageOpen}>

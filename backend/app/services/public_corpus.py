@@ -178,6 +178,10 @@ def list_documents(db: Session, actor: User, *, before_id=None, limit=50, includ
             "document_type": academic.document_type if academic else None,
             "publication_year": academic.publication_year if academic else None,
             "is_bookmarked": bookmark_id is not None})
+    from app.services.researcher_publications import public_researcher_cards
+    cards = public_researcher_cards(db, [row["id"] for row in result])
+    for row in result:
+        row["researcher_card"] = cards.get(row["id"])
     return result
 
 
@@ -338,6 +342,9 @@ def process_upload(task_id: int, actor_id: int):
                 # Only lifecycle state is wired here; academic editing belongs to Phase 5.
                 document.academic_metadata = AcademicDocumentMetadata(title=document.file_name, publication_status="draft")
             db.commit()
+            # Researcher submissions become visible only after this task has produced indexed chunks.
+            from app.services import researcher_publications
+            researcher_publications.complete_publication_task(db, task, document)
             try:
                 get_minio_client().remove_object(settings.MINIO_BUCKET_NAME, staged.temp_path)
             except Exception as error:
@@ -354,6 +361,8 @@ def process_upload(task_id: int, actor_id: int):
                 if task.document_upload:
                     task.document_upload.status = "failed"
                 db.commit()
+                from app.services import researcher_publications
+                researcher_publications.fail_publication_task(db, task_id)
 
 
 def set_publication(db: Session, actor: User, document_id: int, published: bool):

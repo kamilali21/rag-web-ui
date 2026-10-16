@@ -7,6 +7,7 @@ from sqlalchemy import select, func, literal, exists, or_
 from app.core.config import settings
 from app.core.minio import get_minio_client
 from app.models.knowledge import KnowledgeBase, Document, DocumentUpload, ProcessingTask
+from app.models.researcher import PublicationRequest
 from app.services.authorization import private_kb_filter, require_private_knowledge_base
 from app.services.embedding.embedding_factory import EmbeddingsFactory
 from app.services.vector_store import VectorStoreFactory
@@ -98,6 +99,9 @@ def delete_item(db, actor, kb_id, *, document_id=None, upload_id=None):
             ProcessingTask.document_upload_id.in_(upload_ids))).populate_existing().with_for_update().all()
     if any(task.status in {"pending", "processing"} for task in tasks):
         raise HTTPException(409, "Wait for processing to finish before deleting")
+    if document and db.query(PublicationRequest.id).filter_by(
+            source_document_id=document.id, status="processing").first():
+        raise HTTPException(409, "An approved publication copy is still processing")
     paths = {object_path(kb_id, upload.temp_path) for upload in uploads}
     if document:
         paths.add(object_path(kb_id, document.file_path))
@@ -120,9 +124,11 @@ def delete_item(db, actor, kb_id, *, document_id=None, upload_id=None):
         for upload in uploads:
             db.delete(upload)
         if document:
+            # Keep the submission audit row when its private source is deleted.
+            db.query(PublicationRequest).filter_by(source_document_id=document.id, status="pending").update(
+                {PublicationRequest.status: "cancelled"}, synchronize_session=False)
             db.delete(document)
         db.commit()
     except Exception:
         mark_cleanup_failed(db, actor, kb_id, document_id, upload_ids)
         raise HTTPException(503, "Cleanup incomplete. Records retained; retry deletion before using this file.") from None
-

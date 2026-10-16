@@ -13,8 +13,35 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 11 Complete — Next: Phase 12 Structured Summary
+## Current Gate: Phase 12 Closure Pending - Researcher Portfolio and Publication Requests
 
+### Researcher portfolio and publication requests - 16 October 2026
+
+- The approved Phase 12 insertion shifts the previously planned Phases 12-21 to
+  13-22. Completed phase numbers and historical tags stay unchanged. The dated
+  original Master Integration Plan PDF remains unchanged. Its required working-
+  copy amendment is still outstanding.
+- Added profile/request/withdrawal models, revision `riq_006`, and scoped APIs.
+  Admin review reads only the document attached to a request; generic private
+  library routes remain owner-only.
+- Approval stages a separate managed-public-corpus copy and publishes only after
+  indexing succeeds. Per-request consent controls the limited public researcher
+  card. Approved withdrawals use the existing archive lifecycle.
+- Added the Profile page, private-library Request publication dialog, public
+  Library Requests action and pending badge, and consented researcher card.
+- Removed API Keys from dashboard navigation, moved Profile to the final
+  position, and marked Insights as a coming-soon sample preview. Live corpus
+  analysis remains unconnected; the sample page explains the planned features.
+- Phase 12 implementation, all tests and synthetic live acceptance passed.
+  Live migration `riq_006` followed the disposable-MySQL gate and a verified
+  backup; pre/post SQL totals match, and exact synthetic fixtures were removed.
+  Frontend: 80 tests, TypeScript and production build pass. The free-model router
+  `openrouter/free` replaced the pinned model after it returned 404. The backend
+  and frontend were refreshed; the Profile page route returns HTTP 200. The
+  recovery snapshot is tagged `researchiq-phase12-recovery-20261016`; the PDF
+  amendment remains a Phase 12 closure gate. The follow-up navigation/Insights
+  changes pass 6 focused Jest tests, and the production build passes. Do not
+  begin Phase 13.
 ### Security cleanup and deployment preparation - 9-10 October 2026
 
 Maintenance scope and verification are recorded in
@@ -101,8 +128,10 @@ cleanup report; this checkpoint does not claim a clean lint run or public launch
   Browser visual sign-off remains unavailable.
 - Checkpoint tag: `researchiq-phase11-verified-20261007`. Details and receipts:
   `docs/phase11-document-scoped-retrieval.md` and `docs/auth-hero-presentation.md`.
-- Next existing-plan task: Phase 12 structured single-document summary with
-  citations, reusing exact document retrieval. Not started in this checkpoint.
+- At the Phase 11 checkpoint, the next task was Phase 12 structured
+  single-document summary with citations. The approved 16 October insertion
+  places researcher publication workflow at Phase 12, so the summary is now
+  Phase 13 and remains unstarted.
 
 ### Phase 11 started — 6 October 2026
 
@@ -665,28 +694,18 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 
 ## Remaining Sequential Gates
 
-1. Schema foundation, migration reversal and data preservation: completed in Phase 1.
-2. Authorization core and private access regression tests: completed in Phase 2, isolated verification only.
-3. SMTP OTP and secure revocable sessions: completed; user confirmed Phase 3 acceptance.
-4. System-owned public corpus: tested/deployed; live service lifecycle and cleanup verified after explicit admin appointment.
-5. Academic metadata: completed; tested and deployed with live API/storage/retrieval acceptance.
-6. Public catalog and bookmarks: completed, tested and deployed.
-7. Admin ingestion and publication lifecycle.
-8. Private library parity.
-9. Permission-scoped retrieval.
-10. Research Assistant and citation integrity.
-11. Exact document-scoped retrieval.
-12. Structured summary.
-13. Insights on real catalog data.
-14. Compare with evidence persistence.
-15. Bounded Analyze workflow.
-16. Contradiction interpretation.
-17. Corpus-qualified candidate gaps.
-18. Analysis history.
-19. Cross-feature security testing.
-20. RAG evaluation.
-21. Deployment hardening and recovery verification.
-
+1-11. Completed at the historical evidence and tags recorded above.
+12. Researcher profile, publication requests, consent and approved withdrawal: in progress.
+13. Structured single-document summary with citations.
+14. Insights on real catalog data.
+15. Compare with evidence persistence.
+16. Bounded Analyze workflow.
+17. Contradiction interpretation.
+18. Corpus-qualified candidate gaps.
+19. Analysis history.
+20. Cross-feature security testing.
+21. RAG evaluation.
+22. Deployment hardening and recovery verification.
 ### Mobile Library correction - 4 October 2026
 
 Before resuming Phase 9, fixed mobile actions so the admin icon does not consume

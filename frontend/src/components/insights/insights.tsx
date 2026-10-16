@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { BarChart3, Check, ChevronDown, FileText, Filter, Search, Sparkles, X } from "lucide-react";
+import { BarChart3, Check, ChevronDown, FileText, Filter, LockKeyhole, Search, Sparkles, X } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -63,6 +63,12 @@ export function Insights() {
           <button className="primary-action premium-action" onClick={(event) => openWorkflow("analyse", event.currentTarget)}><Sparkles size={22} aria-hidden="true" />Analyse</button>
         </div>
       </div>
+      <aside className="insights-preview-banner" aria-label="Insights preview">
+        <span className="insights-preview-lock"><LockKeyhole size={18} aria-hidden="true" /> Coming soon</span>
+        <div><strong>Advanced research insights are in development</strong>
+          <p>Compare studies side by side, surface research gaps and contradictions, and explore evidence-backed findings. The records below are a sample preview; live corpus analysis is not connected yet.</p>
+        </div>
+      </aside>
       <div className="library-search insights-search">
         <Search size={24} aria-hidden="true" />
         <input type="search" aria-label="Search documents" placeholder="Search documents..." value={query} onChange={(event) => setQuery(event.target.value)} />

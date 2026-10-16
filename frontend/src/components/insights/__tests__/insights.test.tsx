@@ -4,6 +4,14 @@ import userEvent from "@testing-library/user-event";
 import { Insights } from "../insights";
 import { sampleDocuments } from "../sample-documents";
 
+test("labels Insights as a coming-soon sample preview and describes its capabilities", () => {
+  render(<Insights />);
+  const preview = screen.getByRole("complementary", { name: "Insights preview" });
+  expect(preview).toHaveTextContent("Coming soon");
+  expect(preview).toHaveTextContent("research gaps and contradictions");
+  expect(preview).toHaveTextContent("live corpus analysis is not connected yet");
+});
+
 test("combines search, department and dates, and clears an empty result", async () => {
   const user = userEvent.setup();
   render(<Insights />);

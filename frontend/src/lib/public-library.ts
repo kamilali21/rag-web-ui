@@ -14,6 +14,15 @@ export interface PublicDocument {
   document_type: string | null;
   publication_year: number | null;
   is_bookmarked: boolean;
+  researcher_card?: ResearcherCard | null;
+}
+
+export interface ResearcherCard {
+  full_name: string;
+  department_name: string | null;
+  degree: string;
+  research_area: string;
+  photo_url: string | null;
 }
 
 export interface Department { id: number; name: string; code: string; is_active: boolean }

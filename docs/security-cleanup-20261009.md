@@ -9,6 +9,10 @@ protocol are preserved. No old Linux volume recovery or data cleanup is included
 Public hosting is not activated: the owner requested configuration now and a
 domain/server later.
 
+Plan sequence note (16 October 2026): at this report's date, the structured
+summary was the next Phase 12 feature. The approved researcher portfolio
+insertion occupies Phase 12 and moves the summary to Phase 13.
+
 Migration checkpoint: `48761da`, tag `researchiq-windows-migration-20261009`.
 Backend safety checkpoint: `f4eae3b`, tag `researchiq-backend-safety-20261009`.
 The two SQL dumps remain ignored, local and untouched. Safe SQL inspection

@@ -12,6 +12,7 @@ from app.models.base import Base
 from app.models.user import User
 from app.models.knowledge import KnowledgeBase, Document
 from app.models.chat import Chat, Message
+from app.models.researcher import ResearcherProfile, PublicationRequest, WithdrawalRequest
 from app.core.config import settings
 
 # this is the Alembic Config object, which provides
@@ -86,4 +87,4 @@ def run_migrations_online() -> None:
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online() 
+    run_migrations_online()

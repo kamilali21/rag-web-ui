@@ -116,6 +116,8 @@ authentication handlers and forms are unchanged.
 
 ## Next existing-plan task
 
-Phase 12 is a structured single-document
-summary with citations, using this exact-selection service. Insights selection
-and Compare/Analyze remain later phases; none is implemented by this API gate.
+At this checkpoint, Phase 12 was a structured single-document summary with
+citations, using this exact-selection service. The approved 16 October insertion
+places researcher publication workflow at Phase 12; this summary is now Phase
+13. Insights selection and Compare/Analyze remain later phases; none is
+implemented by this API gate.

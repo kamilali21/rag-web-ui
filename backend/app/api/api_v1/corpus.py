@@ -68,7 +68,12 @@ def documents(db: Database, actor: Actor, before_id: int | None = Query(None, ge
 
 @router.get("/documents/{document_id}")
 def document(document_id: int, db: Database, actor: Actor, include_unpublished: bool = False):
-    return corpus.document_summary(corpus.get_document(db, actor, document_id, manage=include_unpublished))
+    row = corpus.get_document(db, actor, document_id, manage=include_unpublished)
+    result = corpus.document_summary(row)
+    if not include_unpublished:
+        from app.services.researcher_publications import public_researcher_card
+        result["researcher_card"] = public_researcher_card(db, document_id)
+    return result
 
 
 @router.get("/documents/{document_id}/content")

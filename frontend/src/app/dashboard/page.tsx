@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, MessageSquare, Plus, RefreshCw, Upload } from "lucide-react";
+import { BookOpen, MessageSquare, Moon, RefreshCw, Sun, Upload } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
+import { useTheme } from "@/components/theme-provider";
 import { api } from "@/lib/api";
 import { LibraryCollection } from "@/lib/library";
 
 // Added by ChatGPT: a quiet dashboard using real API counts and the shared reference palette.
 export default function DashboardPage() {
+  const { isDark, toggleTheme } = useTheme();
   const [stats, setStats] = useState<{ documents: number; collections: number; chats: number } | null>(null);
   const [error, setError] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -40,8 +42,14 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      {/* Added by ChatGPT: premium action border matches Library and Insights. */}
-      <div className="dashboard-heading"><h1>Dashboard</h1><Link className="primary-action premium-action" href="/dashboard/knowledge"><Plus size={20} /> Add Documents</Link></div>
+      <div className="dashboard-heading">
+        <h1>Dashboard</h1>
+        <button type="button" className="primary-action premium-action theme-toggle" role="switch" aria-label="Dark mode" aria-checked={isDark} onClick={toggleTheme}>
+          {isDark ? <Sun size={20} aria-hidden="true" /> : <Moon size={20} aria-hidden="true" />}
+          <span>Dark mode</span>
+          <span className="theme-switch-track" aria-hidden="true"><span /></span>
+        </button>
+      </div>
       {error ? <div className="library-empty" role="alert"><p>Unable to load your dashboard.</p><button className="primary-action" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={18} /> Retry</button></div> :
         <div className="dashboard-stats" aria-busy={!stats}>
           {[{ label: "Documents", value: stats?.documents }, { label: "Collections", value: stats?.collections }, { label: "Conversations", value: stats?.chats }].map(({ label, value }) =>

@@ -16,10 +16,11 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, configure_mappers
 
 BASELINE = "3580c0dcd005"
-HEAD = "riq_005"
+HEAD = "riq_006"
 NEW_TABLES = {
     "roles", "user_roles", "departments", "admin_allowlist", "email_otps",
     "auth_sessions", "auth_rate_limits", "academic_document_metadata", "bookmarks",
+    "researcher_profiles", "publication_requests", "withdrawal_requests",
 }
 
 
@@ -241,6 +242,57 @@ def test_library_rollback_guards(migrated, insert, cleanup, reason):
         with migrated.engine.begin() as connection:
             connection.execute(sa.text(cleanup))
         command.upgrade(migrated.config, HEAD)
+
+
+def test_phase12_rollback_guard_preserves_profile_and_request_audit(migrated):
+    with migrated.engine.begin() as connection:
+        user_id = connection.scalar(sa.text("SELECT MIN(id) FROM users"))
+        connection.execute(sa.text("INSERT INTO departments (name,code) VALUES ('Phase 12 guard','PHASE12')"))
+        department_id = connection.scalar(sa.text("SELECT id FROM departments WHERE code='PHASE12'"))
+        connection.execute(sa.text(
+            "INSERT INTO researcher_profiles (user_id,full_name,department_id,degree,research_area) "
+            "VALUES (:user,'Synthetic Researcher',:department,'MSc','Water use')"
+        ), {"user": user_id, "department": department_id})
+    try:
+        with pytest.raises(RuntimeError, match="researcher_profiles"):
+            command.downgrade(migrated.config, "riq_005")
+    finally:
+        with migrated.engine.begin() as connection:
+            connection.execute(sa.text("DELETE FROM researcher_profiles WHERE full_name='Synthetic Researcher'"))
+
+    with migrated.engine.begin() as connection:
+        connection.execute(sa.text(
+            "INSERT INTO publication_requests (owner_id,metadata_snapshot,status) "
+            "VALUES (:user,'{\"title\":\"Synthetic\"}','pending')"
+        ), {"user": user_id})
+        request_id = connection.scalar(sa.text("SELECT MAX(id) FROM publication_requests"))
+    try:
+        with pytest.raises(RuntimeError, match="publication_requests"):
+            command.downgrade(migrated.config, "riq_005")
+    finally:
+        with migrated.engine.begin() as connection:
+            connection.execute(sa.text("DELETE FROM publication_requests WHERE id=:id"), {"id": request_id})
+
+    with migrated.engine.begin() as connection:
+        connection.execute(sa.text(
+            "INSERT INTO publication_requests (owner_id,metadata_snapshot,status) "
+            "VALUES (:user,'{\"title\":\"Synthetic\"}','published')"
+        ), {"user": user_id})
+        request_id = connection.scalar(sa.text("SELECT MAX(id) FROM publication_requests"))
+        connection.execute(sa.text(
+            "INSERT INTO withdrawal_requests (publication_request_id,owner_id,status) "
+            "VALUES (:request,:user,'pending')"
+        ), {"request": request_id, "user": user_id})
+    try:
+        with pytest.raises(RuntimeError, match="withdrawal_requests"):
+            command.downgrade(migrated.config, "riq_005")
+    finally:
+        with migrated.engine.begin() as connection:
+            connection.execute(sa.text("DELETE FROM withdrawal_requests WHERE publication_request_id=:id"), {"id": request_id})
+            connection.execute(sa.text("DELETE FROM publication_requests WHERE id=:id"), {"id": request_id})
+            connection.execute(sa.text("DELETE FROM departments WHERE code='PHASE12'"))
+    with migrated.engine.connect() as connection:
+        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == HEAD
 
 
 def test_earlier_migrations_refuse_destructive_rollback(migrated):

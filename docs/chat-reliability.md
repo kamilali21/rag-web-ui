@@ -147,4 +147,6 @@ the backup to reverse model selection. Keep the cache volume and existing
 research volumes. Restart/recreate only backend as appropriate and reload nginx;
 no database rollback is required. Preserve the user's separate MinIO image edit.
 
-Checkpoint: `researchiq-chat-corpus-20261008`. Next feature remains Phase 12.
+Checkpoint: `researchiq-chat-corpus-20261008`. At that checkpoint, the next
+feature was Phase 12 structured summary. The approved 16 October insertion
+moves that feature to Phase 13; the current Phase 12 is researcher publishing.
