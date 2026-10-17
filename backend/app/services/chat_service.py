@@ -3,9 +3,11 @@ import base64
 import logging
 import re
 import asyncio
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
 from fastapi import HTTPException
-from openai import APIError
+from openai import APIError, RateLimitError
 from typing import List, AsyncGenerator, Any
 from sqlalchemy.orm import Session
 from langchain_openai import ChatOpenAI
@@ -30,6 +32,28 @@ from app.services.citations import INSUFFICIENT, encode_evidence, validated_bloc
 logger = logging.getLogger(__name__)
 
 GREETING = "Hello! Ask me a question about your selected research sources, and I'll help with evidence-backed answers and citations."
+MAX_RATE_LIMIT_RETRY_AFTER_SECONDS = 5.0
+DEFAULT_RATE_LIMIT_RETRY_AFTER_SECONDS = 0.75
+
+
+def rate_limit_retry_delay(error: RateLimitError) -> float | None:
+    """Return a bounded Retry-After delay, or None when waiting is too long."""
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", {}) or {}
+    value = headers.get("retry-after") or headers.get("Retry-After")
+    if value is None:
+        return DEFAULT_RATE_LIMIT_RETRY_AFTER_SECONDS
+    try:
+        delay = max(float(value), 0.0)
+    except (TypeError, ValueError):
+        try:
+            retry_at = parsedate_to_datetime(str(value))
+            if retry_at.tzinfo is None:
+                retry_at = retry_at.replace(tzinfo=timezone.utc)
+            delay = max((retry_at - datetime.now(timezone.utc)).total_seconds(), 0.0)
+        except (TypeError, ValueError, OverflowError):
+            return DEFAULT_RATE_LIMIT_RETRY_AFTER_SECONDS
+    return delay if delay <= MAX_RATE_LIMIT_RETRY_AFTER_SECONDS else None
 
 
 def is_greeting(query: str) -> bool:
@@ -269,6 +293,14 @@ async def generate_response(
                 if attempt or answer_started:
                     raise
                 logger.warning("Retrying invalid structured answer before output")
+            except RateLimitError as rate_limit_error:
+                if attempt or answer_started:
+                    raise
+                delay = rate_limit_retry_delay(rate_limit_error)
+                if delay is None:
+                    raise
+                logger.warning("Chat provider rate-limited generation; retrying once after %.2f seconds", delay)
+                await asyncio.sleep(delay)
 
         # Update bot message content
         bot_message.content = full_response
@@ -281,7 +313,9 @@ async def generate_response(
         db.rollback()
         logger.error("Chat generation failed (stage=%s, %s, status=%s)", stage, type(e).__name__, getattr(e, "status_code", None))
         error_message = "Unable to generate a response. Please try again."
-        if isinstance(e, APIError):
+        if isinstance(e, RateLimitError):
+            error_message = "The free AI service is busy right now. Please try again shortly."
+        elif isinstance(e, APIError):
             error_message = "The answer provider is temporarily unavailable. Please try again shortly."
         elif isinstance(e, HTTPException) and e.status_code == 409:
             error_message = "Sources changed while answering. Please ask again using the available sources."

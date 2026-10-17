@@ -16,6 +16,7 @@ beforeEach(() => {
   jest.spyOn(window, "confirm").mockReturnValue(true);
 });
 afterEach(() => jest.restoreAllMocks());
+afterEach(() => window.history.replaceState({}, "", "/"));
 const expectCatalog = (part: string) => waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining(part), expect.objectContaining({ signal: expect.any(AbortSignal) })));
 
 test("search and state/category filters are sent to the bounded server catalog", async () => {
@@ -92,6 +93,20 @@ test("empty library creates a real collection before uploading", async () => {
   await user.click(screen.getAllByRole("button", { name: "Add Documents" })[0]);
   await user.click(screen.getByRole("button", { name: "Create collection" }));
   expect(await screen.findByText("Upload to collection 19")).toBeInTheDocument();
+});
+
+test("dashboard publication shortcut opens the existing request dialog and removes its URL flag", async () => {
+  window.history.replaceState({}, "", "/dashboard/knowledge?requestPublication=1");
+  jest.mocked(api.get).mockImplementation(async (url) => {
+    if (String(url).includes("/catalog?")) return catalog;
+    if (String(url).includes("/eligible-documents")) return [];
+    if (String(url).includes("/researcher/profile")) return null;
+    if (String(url).includes("/departments")) return [];
+    return collections;
+  });
+  render(<Library />);
+  expect(await screen.findByRole("heading", { name: "Request publication" })).toBeInTheDocument();
+  expect(window.location.search).toBe("");
 });
 
 test("latest processing attempt and UTC timestamps remain truthful", () => {

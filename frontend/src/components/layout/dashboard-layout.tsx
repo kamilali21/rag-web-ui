@@ -3,11 +3,15 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Book, BookOpen, CircleUser, Home, LogOut, Menu, MessageSquare, Sparkles } from "lucide-react";
+import { Book, BookOpen, CircleUser, Home, LockKeyhole, Menu, MessageSquare, Sparkles } from "lucide-react";
 import Breadcrumb from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { api, ApiError } from "@/lib/api";
 import { useTheme } from "@/components/theme-provider";
+import SignOutButton from "@/components/layout/sign-out-button";
+
+type SidebarProfile = { full_name?: string | null; photo_url?: string | null } | null;
+type CurrentIdentity = { username?: string | null };
 
 // Added by ChatGPT: shared navigation for the reference sidebar and accessible mobile drawer.
 const navigation = [
@@ -16,7 +20,6 @@ const navigation = [
   { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
   // Added by ChatGPT: frontend research workspace in desktop and mobile navigation.
   { name: "Insights", href: "/dashboard/insights", icon: Sparkles },
-  { name: "Profile", href: "/dashboard/profile", icon: CircleUser },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -25,14 +28,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [menuOpen, setMenuOpen] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [signingOut, setSigningOut] = useState(false);
+  const [identity, setIdentity] = useState<CurrentIdentity | null>(null);
+  const [profile, setProfile] = useState<SidebarProfile>(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const { isDark } = useTheme();
 
   // Added by ChatGPT: validate the server session before rendering protected content.
   useEffect(() => {
     let active = true;
-    api.get("/api/auth/me", { redirectOnUnauthorized: false, cache: "no-store" }).then(() => {
-      if (active) setAuthenticated(true);
+    api.get("/api/auth/me", { redirectOnUnauthorized: false, cache: "no-store" }).then((current: CurrentIdentity) => {
+      if (!active) return;
+      setIdentity(current);
+      setAuthenticated(true);
+      void api.get("/api/researcher/profile", { cache: "no-store" }).then(currentProfile => {
+        if (active) setProfile(currentProfile);
+      }).catch(() => {
+        // Authentication remains valid when an account has not created a researcher profile yet.
+      });
     }).catch(error => {
       if (!active) return;
       if (error instanceof ApiError && error.status === 401) router.replace("/login");
@@ -41,15 +53,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => { active = false; };
   }, [router]);
 
-  const handleLogout = async () => {
-    setSigningOut(true); setAuthError("");
-    try {
-      await api.post("/api/auth/logout");
-      localStorage.removeItem("token");
-      router.replace("/login");
-    } catch { setAuthError("Sign out failed. Please try again."); }
-    finally { setSigningOut(false); }
-  };
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest(".app-account-menu-anchor")) setAccountMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountMenuOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [accountMenuOpen]);
 
   // Added by ChatGPT: retain authentication and route behavior in both navigation layouts.
   const sidebar = (
@@ -64,16 +82,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             pathname.startsWith(href) || (name === "Library" && pathname.startsWith("/dashboard/test-retrieval"));
           return (
             <Link key={href} href={href} aria-current={active ? "page" : undefined}
+              aria-label={name === "Insights" ? "Insights, locked preview" : undefined}
               className={`app-nav-link${active ? " is-active" : ""}`} onClick={() => setMenuOpen(false)}>
-              <Icon size={24} strokeWidth={1.6} aria-hidden="true" />
+              {name === "Insights" ? <span className="app-nav-insights-icon" aria-hidden="true">
+                <Icon size={24} strokeWidth={1.6} /><LockKeyhole size={12} />
+              </span> : <Icon size={24} strokeWidth={1.6} aria-hidden="true" />}
               <span>{name}</span>
             </Link>
           );
         })}
       </nav>
-      <button className="app-nav-link app-signout" onClick={handleLogout} disabled={signingOut}>
-        <LogOut size={24} strokeWidth={1.6} aria-hidden="true" /> Sign out
-      </button>
+      <div className="app-sidebar-bottom">
+        <div className="app-account-menu-anchor">
+          <button type="button" aria-label="Open account menu" aria-expanded={accountMenuOpen}
+            className={`app-profile-card${pathname.startsWith("/dashboard/profile") ? " is-active" : ""}`}
+            onClick={() => setAccountMenuOpen(open => !open)}>
+          <span className="app-profile-avatar" aria-hidden="true">
+            {profile?.photo_url ? <img src={profile.photo_url} alt="" /> : <CircleUser size={24} strokeWidth={1.6} />}
+          </span>
+          <span className="app-profile-copy"><strong>{profile?.full_name || identity?.username || "Profile"}</strong>
+            <small>{identity?.username ? `@${identity.username}` : "Manage your profile"}</small></span>
+          </button>
+          {accountMenuOpen && <div className="app-account-menu" role="group" aria-label="Account menu">
+            <div className="app-account-menu-identity">
+              <span className="app-profile-avatar" aria-hidden="true">
+                {profile?.photo_url ? <img src={profile.photo_url} alt="" /> : <CircleUser size={24} strokeWidth={1.6} />}
+              </span>
+              <span className="app-profile-copy"><strong>{profile?.full_name || identity?.username || "Profile"}</strong>
+                <small>{identity?.username ? `@${identity.username}` : "Researcher account"}</small></span>
+            </div>
+            <Link href="/dashboard/profile" className="app-account-menu-profile" onClick={() => {
+              setAccountMenuOpen(false);
+              setMenuOpen(false);
+            }}>View profile</Link>
+            <SignOutButton className="account-menu-signout" />
+          </div>}
+        </div>
+      </div>
     </>
   );
 
@@ -111,7 +156,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 // Added by ChatGPT: preserve the exported configuration for existing consumers.
 export const dashboardConfig = {
   mainNav: [],
-  sidebarNav: navigation.map(({ name, href }) => ({
-    title: name, href, icon: name === "Library" ? "database" : name === "Profile" ? "user" : name === "Chat" ? "messageSquare" : name === "Insights" ? "sparkles" : name === "Dashboard" ? "home" : "key",
-  })),
+  sidebarNav: [...navigation.map(({ name, href }) => ({
+    title: name, href, icon: name === "Library" ? "database" : name === "Chat" ? "messageSquare" : name === "Insights" ? "sparkles" : name === "Dashboard" ? "home" : "key",
+  })), { title: "Profile", href: "/dashboard/profile", icon: "user" }],
 };

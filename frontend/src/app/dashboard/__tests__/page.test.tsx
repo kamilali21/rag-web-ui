@@ -12,7 +12,17 @@ jest.mock("@/lib/api", () => ({ api: { get: jest.fn() } }));
 
 beforeEach(() => {
   localStorage.clear();
-  jest.mocked(api.get).mockResolvedValue([]);
+  jest.mocked(api.get).mockImplementation(async (path) => {
+    if (String(path) === "/api/researcher/requests") return {
+      publications: [
+        { id: 1, status: "published", publication_status: "published" },
+        { id: 2, status: "published", publication_status: "published" },
+        { id: 3, status: "pending", publication_status: null },
+      ],
+      withdrawals: [{ publication_request_id: 2, status: "approved" }],
+    };
+    return [];
+  });
 });
 
 test("dashboard replaces Add Documents with a persistent dark-mode switch", async () => {
@@ -22,6 +32,9 @@ test("dashboard replaces Add Documents with a persistent dark-mode switch", asyn
   const toggle = await screen.findByRole("switch", { name: "Dark mode" });
   expect(toggle).toHaveAttribute("aria-checked", "true");
   expect(screen.queryByRole("link", { name: /add documents/i })).not.toBeInTheDocument();
+  expect(await screen.findByText("Publications")).toBeInTheDocument();
+  expect(screen.getByText("1", { selector: "strong" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Request publication" })).toHaveAttribute("href", "/dashboard/knowledge?requestPublication=1");
 
   await userEvent.click(toggle);
   expect(toggle).toHaveAttribute("aria-checked", "false");

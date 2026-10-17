@@ -42,6 +42,26 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
   amendment remains a Phase 12 closure gate. The follow-up navigation/Insights
   changes pass 6 focused Jest tests, and the production build passes. Do not
   begin Phase 13.
+
+### Chat reliability and dashboard maintenance — 17 October 2026
+
+- Configured OpenRouter's `openrouter/free` router and added one bounded,
+  pre-output 429 retry that respects `Retry-After` up to five seconds. Disabled
+  overlapping SDK retries for OpenRouter; citation and source checks remain.
+- Updated the user's dashboard publication count and publication-request
+  shortcut, dark-mode library filters, Insights lock indicator, profile sidebar
+  card and account popover. Sign out is available inside the profile popover
+  and on the Profile page using the existing logout flow.
+- Backend chat/retrieval tests: **51 passed**; frontend: **87 passed**; focused
+  account-menu tests: **4 passed**; TypeScript passed. The Docker production
+  frontend build passed. Only the frontend container was rebuilt/restarted;
+  `/dashboard` returned HTTP 200.
+- Browser visual acceptance and a real corpus-chat replay were unavailable in
+  this session. A synthetic JSON-mode provider check passed; no user prompt or
+  research document was sent. This maintenance checkpoint does not close Phase
+  12 or authorize Phase 13; the Master Plan PDF amendment remains outstanding.
+- Recovery tag: `researchiq-chat-dashboard-20261017`.
+
 ### Security cleanup and deployment preparation - 9-10 October 2026
 
 Maintenance scope and verification are recorded in

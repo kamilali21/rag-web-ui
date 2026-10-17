@@ -1,4 +1,5 @@
 from typing import Optional
+from urllib.parse import urlparse
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langchain_deepseek import ChatDeepSeek
@@ -19,6 +20,9 @@ class LLMFactory:
         provider = provider or settings.CHAT_PROVIDER
 
         if provider.lower() == "openai":
+            # OpenRouter throttling is retried once by the chat service, where
+            # it can honor Retry-After without stacking SDK retries.
+            openrouter = urlparse(settings.OPENAI_API_BASE).hostname == "openrouter.ai"
             return ChatOpenAI(
                 temperature=temperature,
                 streaming=streaming,
@@ -26,7 +30,7 @@ class LLMFactory:
                 openai_api_key=settings.OPENAI_API_KEY,
                 openai_api_base=settings.OPENAI_API_BASE,
                 timeout=45,
-                max_retries=1,
+                max_retries=0 if openrouter else 1,
             )
         elif provider.lower() == "deepseek":
             return ChatDeepSeek(

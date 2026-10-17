@@ -47,6 +47,15 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
   const [page, setPage] = useState(0);
   const [appliedQuery, setAppliedQuery] = useState("");
 
+  // Dashboard shortcut deep-link opens the existing workflow once, then cleans its URL flag.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("requestPublication") !== "1") return;
+    setPublicationOpen(true);
+    url.searchParams.delete("requestPublication");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
   useEffect(() => {
     if (query === appliedQuery) return;
     const timer = setTimeout(() => { setAppliedQuery(query); setPage(0); }, 250);

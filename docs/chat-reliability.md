@@ -150,3 +150,52 @@ no database rollback is required. Preserve the user's separate MinIO image edit.
 Checkpoint: `researchiq-chat-corpus-20261008`. At that checkpoint, the next
 feature was Phase 12 structured summary. The approved 16 October insertion
 moves that feature to Phase 13; the current Phase 12 is researcher publishing.
+
+## OpenRouter free-model refresh — 16 October 2026
+
+The ignored local `.env` and production example now pin
+`google/gemma-4-31b-it:free` instead of the variable `openrouter/free` router
+and the previously selected Apodex model. The current OpenRouter model catalog
+lists this model as free, and its Google AI Studio endpoint advertises JSON
+response-format support required by the chat answer validator. Catalog and
+provider availability can change; no authenticated chat request was made.
+The code still requires supported request parameters, disables reasoning, and
+validates every answer/citation before streaming it.
+
+The backend must be recreated after supplying the rotated OpenRouter API key so
+Docker loads the updated environment. Recent backend logs contained no retained
+chat-generation error to diagnose; this model change addresses model-selection
+stability, not an invalid/revoked API key.
+
+## Free-router throttling recovery — 17 October 2026
+
+The Windows runtime reported OpenRouter HTTP 429 after successful Chroma
+retrieval. The configured model now uses OpenRouter's free-model router so the
+provider can select a free endpoint compatible with the requested JSON output.
+The router remains subject to free-provider and account quotas; this does not
+guarantee availability or select a fixed model.
+
+OpenRouter requests no longer use the SDK's automatic retry on top of the
+application retry. Final answer generation may retry once before emitting any
+answer content, respecting `Retry-After` up to five seconds. The existing
+validated-output retry shares the same two-attempt budget. A later 429, a longer
+requested wait, or any error after output begins is not replayed. Citations,
+source permissions and saved-answer validation remain unchanged. Persistent
+throttling returns a specific temporary free-service message. No paid fallback
+is configured.
+
+### Verification
+
+- Chat reliability and retrieval-scope regressions: **51 passed** in a disposable
+  test container with OTP disabled only for test fixtures.
+- Frontend suite: **87 passed**; TypeScript check passed.
+- Linux Docker production frontend build passed and generated all 15 pages. Next
+  reported an existing ESLint CLI option mismatch but continued through the build.
+  A direct Windows standalone build is blocked at file tracing by local symlink
+  permissions; `outputFileTracingRoot` is now scoped to this frontend project.
+- After restarting only backend/frontend and reloading nginx, `/api/health` and
+  the landing page both returned HTTP 200. The backend loaded `openrouter/free`.
+  A synthetic JSON-mode request reached `dots-studio/dots-3-note-preview:free`
+  and returned valid JSON; no ResearchIQ document or user prompt was sent.
+- The browser integration is unavailable in this session, so authenticated
+  visual interaction and a live corpus-chat replay could not be verified here.

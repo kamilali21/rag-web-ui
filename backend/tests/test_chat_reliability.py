@@ -176,3 +176,93 @@ def test_openrouter_json_mode_applies_only_to_answer_and_keeps_citation_validati
     assert calls[1]['response_format'] == {'type': 'json_object'}
     assert calls[1]['extra_body']['provider']['require_parameters'] is True
     assert '3:' in response.text and 'Invented claim' not in response.text
+
+
+def openrouter_rate_limit(retry_after="0"):
+    import httpx
+    from openai import RateLimitError
+    response = httpx.Response(429, request=httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions"),
+                              headers={"Retry-After": retry_after})
+    return RateLimitError("rate limited", response=response, body={"error": "rate limited"})
+
+
+def test_rate_limit_retry_delay_is_bounded_and_parses_retry_after():
+    assert chat_service.rate_limit_retry_delay(openrouter_rate_limit("2")) == 2
+    assert chat_service.rate_limit_retry_delay(openrouter_rate_limit("30")) is None
+    assert chat_service.rate_limit_retry_delay(openrouter_rate_limit("invalid")) == chat_service.DEFAULT_RATE_LIMIT_RETRY_AFTER_SECONDS
+
+
+def test_rate_limited_generation_retries_once_then_keeps_valid_citations(sources, provider, monkeypatch):
+    from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableLambda
+    calls = []
+
+    async def model(messages, **kwargs):
+        calls.append(True)
+        if len(calls) == 1:
+            raise openrouter_rate_limit("0")
+        return AIMessage(content='{"text":"Supported result.","citations":["E1"]}')
+
+    monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: RunnableLambda(model))
+    response = send(sources, "What does this paper report?")
+    assert len(calls) == 2
+    assert "d:" in response.text and "3:" not in response.text
+    assert response.text.count("[citation:1]") == 1
+    assert response.text.count("__LLM_RESPONSE__") == 1
+
+
+def test_persistent_rate_limit_returns_specific_error_without_third_attempt(sources, provider, monkeypatch):
+    from langchain_core.runnables import RunnableLambda
+    calls = []
+
+    async def model(messages, **kwargs):
+        calls.append(True)
+        raise openrouter_rate_limit("0")
+
+    monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: RunnableLambda(model))
+    response = send(sources, "What does this paper report?")
+    assert len(calls) == 2
+    assert "The free AI service is busy right now" in response.text
+    assert "d:" not in response.text and "__LLM_RESPONSE__" not in response.text
+
+
+def test_retry_after_over_limit_does_not_retry_provider(sources, provider, monkeypatch):
+    from langchain_core.runnables import RunnableLambda
+    calls = []
+
+    async def model(messages, **kwargs):
+        calls.append(True)
+        raise openrouter_rate_limit("30")
+
+    monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: RunnableLambda(model))
+    response = send(sources, "What does this paper report?")
+    assert len(calls) == 1
+    assert "The free AI service is busy right now" in response.text
+
+
+def test_rate_limit_after_first_answer_block_is_never_replayed(sources, provider, monkeypatch):
+    from langchain_core.messages import AIMessageChunk
+    from langchain_core.runnables import RunnableGenerator
+
+    async def chunks(inputs, **kwargs):
+        yield AIMessageChunk(content='{"text":"First supported claim.","citations":["E1"]}')
+        raise openrouter_rate_limit("0")
+
+    monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: RunnableGenerator(chunks))
+    response = send(sources, "What does this paper report?")
+    assert response.text.count("First supported claim.") == 1
+    assert "The free AI service is busy right now" in response.text
+    assert "d:" not in response.text
+
+
+def test_openrouter_factory_disables_overlapping_sdk_retries(monkeypatch):
+    from app.services.llm import llm_factory
+    constructor = MagicMock(return_value=object())
+    monkeypatch.setattr(llm_factory, "ChatOpenAI", constructor)
+    monkeypatch.setattr(llm_factory.settings, "CHAT_PROVIDER", "openai")
+    monkeypatch.setattr(llm_factory.settings, "OPENAI_API_BASE", "https://openrouter.ai/api/v1")
+    llm_factory.LLMFactory.create()
+    assert constructor.call_args.kwargs["max_retries"] == 0
+    monkeypatch.setattr(llm_factory.settings, "OPENAI_API_BASE", "https://api.openai.com/v1")
+    llm_factory.LLMFactory.create()
+    assert constructor.call_args.kwargs["max_retries"] == 1
