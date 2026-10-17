@@ -16,7 +16,35 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 13 - Structured Single-Document Summary
+## Current Gate: Phase 14 - Insights on Real Catalog Data
+
+### Phase 13 closure - Structured Document Summaries - 17 October 2026
+
+- Phase 13 adds temporary structured summaries through
+  `POST /api/retrieval/documents/summarize`; no database schema, Alembic
+  revision, chat history, or saved-summary state was added.
+- Summaries contain objective, methods/context, key findings, limitations, and
+  implications/conclusion. Retrieval is restricted to the exact requested
+  document and existing scope rules: private documents must be owner-owned and
+  ready; public documents must be published and ready.
+- The service treats document text as untrusted, validates structured model
+  output, maps every evidence ID back to retrieved SQL-backed chunk metadata,
+  rejects unknown citations, and rechecks current access after generation.
+  Unsupported sections are explicitly marked as not identified in evidence.
+- Added a Summarize action to ready private and published public document
+  details. Unpublished corpus drafts do not show it. Citation links open the
+  source PDF at the cited page. Results are temporary and not saved.
+- Phase 13 API tests: 15 passed, 1 opt-in provider test skipped by default.
+  The opt-in test was run against fabricated paper text in isolated SQLite
+  fixtures with the configured free provider: 1 passed; citations matched the
+  exact source document and no chat messages were created. Fixture teardown
+  removed all synthetic records.
+- Full backend regression: 352 passed, 42 skipped. Frontend: 90 tests across
+  16 suites passed; TypeScript passed; optimized Docker production build
+  passed. Existing Next.js ESLint-option and Tailwind line-clamp warnings remain.
+- No database migration or user-data changes were made. Recovery checkpoint:
+  `researchiq-phase13-summary-20261017`.
+- Next gate is Phase 14: Insights on real catalog data.
 
 ### Phase 12 closure - Researcher Portfolio and Publication Requests - 17 October 2026
 
@@ -735,8 +763,8 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 
 1-11. Completed at the historical evidence and tags recorded above.
 12. Researcher profile, publication requests, consent and approved withdrawal: complete.
-13. Structured single-document summary with citations: current gate.
-14. Insights on real catalog data.
+13. Structured single-document summary with citations: complete; see the 17 October closure receipt above.
+14. Insights on real catalog data: current gate.
 15. Compare with evidence persistence.
 16. Bounded Analyze workflow.
 17. Contradiction interpretation.

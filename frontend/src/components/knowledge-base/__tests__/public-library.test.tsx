@@ -97,6 +97,7 @@ test("detail popup loads authorized metadata and offers only safe corpus file li
   await user.click(screen.getByRole("button", { name: "Details for Irrigation Efficiency" }));
   const dialog = await screen.findByRole("dialog");
   expect(await within(dialog).findByText("Synthetic irrigation research.")).toBeInTheDocument();
+  expect(within(dialog).getByRole("button", { name: "Summarize paper" })).toBeInTheDocument();
   expect(within(dialog).getByRole("link", { name: "Open document" })).toHaveAttribute("href", "/api/corpus/documents/9/content?inline=true");
   expect(within(dialog).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/corpus/documents/9/content");
   expect(within(dialog).queryByRole("button", { name: /delete|edit|publish/i })).not.toBeInTheDocument();

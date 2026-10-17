@@ -11,6 +11,7 @@ import { DocumentUploadSteps } from "./document-upload-steps";
 import { LibraryTable } from "./library-table";
 import { PublicLibrary } from "./public-library";
 import { PublicationRequestDialog } from "./researcher-publication-dialogs";
+import { DocumentSummaryPanel } from "./document-summary";
 
 // Added by ChatGPT: a document-first view over the existing owner-scoped knowledge-base APIs.
 export function Library({ knowledgeBaseId }: { knowledgeBaseId?: number }) {
@@ -246,6 +247,8 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
             <dl className="document-details"><dt>Size</dt><dd>{documentSize(selectedDocument.file_size)}</dd><dt>Status</dt><dd>{documentStatus(selectedDocument).label}</dd><dt>Collection</dt><dd>{collections.find((collection) => collection.id === selectedDocument.knowledge_base_id)?.name}</dd></dl>
             <Button asChild><Link href={`/dashboard/knowledge/${selectedDocument.knowledge_base_id}`} onClick={() => setSelectedDocument(null)}>Open collection</Link></Button>
             {!selectedDocument.upload_id && <Button asChild variant="outline"><a href={`/api/knowledge-base/${selectedDocument.knowledge_base_id}/documents/${selectedDocument.id}/content?inline=true`} target="_blank" rel="noopener noreferrer">Open document</a></Button>}
+            {!selectedDocument.upload_id && documentStatus(selectedDocument).status === "completed" &&
+              <DocumentSummaryPanel documentId={selectedDocument.id} scope="private" />}
             {selectedDocument.upload_id && <p className="text-sm text-muted-foreground">This upload has not produced a document yet. If processing failed, delete it and upload the file again.</p>}
             <Button variant="destructive" disabled={deleting !== null || ["pending", "processing"].includes(documentStatus(selectedDocument).status) && !selectedDocument.upload_id} onClick={() => deleteDocument(selectedDocument)}>
               <Trash2 size={16} /> {deleting !== null ? "Deleting..." : "Delete file"}

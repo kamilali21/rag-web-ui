@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models import User
+from app.schemas.document_summary import DocumentSummaryRequest, DocumentSummaryResponse
+from app.services.document_summary import summarize_document
 from app.services.retrieval_scope import SourceScope, search_documents, search_scope
 
 router = APIRouter()
@@ -35,3 +37,9 @@ def query_documents(payload: DocumentRetrievalRequest, db: Session = Depends(get
     """Retrieve only from the complete authorized selection; never broaden it."""
     return {"results": search_documents(db, actor, payload.document_ids, payload.query,
                                         payload.top_k, scope=payload.scope)}
+
+
+@router.post("/documents/summarize", response_model=DocumentSummaryResponse)
+def summarize_selected_document(payload: DocumentSummaryRequest, db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    """Summarize one authorized ready document without widening its retrieval scope."""
+    return summarize_document(db, actor, payload)

@@ -7,6 +7,7 @@ import { documentSize } from "@/lib/library";
 import { CorpusEvidence, Department, PublicDocument, PublicMetadata } from "@/lib/public-library";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DocumentSummaryPanel } from "./document-summary";
 import Link from "next/link";
 
 const message = (error: unknown) => error instanceof ApiError ? error.message : "Request failed. Please try again.";
@@ -55,6 +56,8 @@ export function PublicDocumentDetails({ id, onClose, manage = false }: { id: num
             <div><h3>{details.document.researcher_card.full_name}</h3><p>{details.document.researcher_card.department_name} · {details.document.researcher_card.degree}</p>
               <p>{details.document.researcher_card.research_area}</p></div>
           </section>}
+          {details.document.publication_status === "published" &&
+            <DocumentSummaryPanel documentId={details.document.id} scope="public" />}
           <div className="public-dialog-actions">
             {/* Cookie-authenticated links retain server authorization and never expose MinIO paths. */}
             <Button asChild><a href={`/api/corpus/documents/${id}/content?inline=true${manage ? "&include_unpublished=true" : ""}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} /> Open document</a></Button>

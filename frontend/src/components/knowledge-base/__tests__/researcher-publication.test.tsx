@@ -60,3 +60,12 @@ test("publication request requires a profile before showing the submission form"
   expect(within(dialog).getByRole("link", { name: "Open Profile" })).toHaveAttribute("href", "/dashboard/profile");
   expect(within(dialog).queryByLabelText("Author(s)")).not.toBeInTheDocument();
 });
+
+test("ready private document details offer the temporary summary action", async () => {
+  const user = userEvent.setup();
+  render(<Library />);
+  await screen.findByText("study.pdf");
+  await user.click(screen.getByRole("button", { name: "Details for study.pdf" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(await within(dialog).findByRole("button", { name: "Summarize paper" })).toBeInTheDocument();
+});
