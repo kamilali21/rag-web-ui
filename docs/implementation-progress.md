@@ -2,7 +2,10 @@
 
 <!-- Added by ChatGPT: implementation gates and evidence for the adaptable master plan. -->
 
-Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026.
+Source: version 1.0 of `ResearchIQ_Master_Integration_Plan.pdf` (15 September
+2026), governed by the appended 17 October amendment committed at
+`output/pdf/ResearchIQ_Master_Integration_Plan.pdf`. The dated original remains
+byte-identical; the Projects-root working copy is synchronized to the amendment.
 
 ## Working Agreement
 
@@ -13,14 +16,29 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 12 Closure Pending - Researcher Portfolio and Publication Requests
+## Current Gate: Phase 13 - Structured Single-Document Summary
+
+### Phase 12 closure - Researcher Portfolio and Publication Requests - 17 October 2026
+
+- Phase 12 implementation and synthetic acceptance completed on 16 October;
+  the controlling amendment on pages 24-26 of the working Master Plan formally
+  closes the gate and records the approved Phase 13-22 renumbering.
+- The dated original PDF remains unchanged. The amended working PDF is committed
+  under `output/pdf/ResearchIQ_Master_Integration_Plan.pdf` and synchronized to
+  the Projects-root working copy.
+- Closure relies on the Phase 12 verification receipt below and the recovery tag
+  `researchiq-phase12-recovery-20261016`; no completed phase numbers or historic
+  tags were rewritten.
+- Phase 13 is the next gate: implement temporary, citation-backed structured
+  single-document summaries with exact Phase 11 retrieval in both library
+  detail views. Chat commands and saved summary history are out of scope.
 
 ### Researcher portfolio and publication requests - 16 October 2026
 
 - The approved Phase 12 insertion shifts the previously planned Phases 12-21 to
   13-22. Completed phase numbers and historical tags stay unchanged. The dated
-  original Master Integration Plan PDF remains unchanged. Its required working-
-  copy amendment is still outstanding.
+  original Master Integration Plan PDF remains unchanged; the working-copy
+  amendment is now recorded in the 17 October closure entry above.
 - Added profile/request/withdrawal models, revision `riq_006`, and scoped APIs.
   Admin review reads only the document attached to a request; generic private
   library routes remain owner-only.
@@ -41,7 +59,7 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
   recovery snapshot is tagged `researchiq-phase12-recovery-20261016`; the PDF
   amendment remains a Phase 12 closure gate. The follow-up navigation/Insights
   changes pass 6 focused Jest tests, and the production build passes. Do not
-  begin Phase 13.
+  Phase 12 was not formally closed until the working-plan amendment on 17 October.
 
 ### Chat reliability and dashboard maintenance — 17 October 2026
 
@@ -59,7 +77,8 @@ Source: `ResearchIQ_Master_Integration_Plan.pdf`, version 1.0, 15 September 2026
 - Browser visual acceptance and a real corpus-chat replay were unavailable in
   this session. A synthetic JSON-mode provider check passed; no user prompt or
   research document was sent. This maintenance checkpoint does not close Phase
-  12 or authorize Phase 13; the Master Plan PDF amendment remains outstanding.
+  12 at that historical checkpoint; its working-plan amendment later closed the
+  gate on 17 October.
 - Recovery tag: `researchiq-chat-dashboard-20261017`.
 
 ### Security cleanup and deployment preparation - 9-10 October 2026
@@ -715,8 +734,8 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 ## Remaining Sequential Gates
 
 1-11. Completed at the historical evidence and tags recorded above.
-12. Researcher profile, publication requests, consent and approved withdrawal: in progress.
-13. Structured single-document summary with citations.
+12. Researcher profile, publication requests, consent and approved withdrawal: complete.
+13. Structured single-document summary with citations: current gate.
 14. Insights on real catalog data.
 15. Compare with evidence persistence.
 16. Bounded Analyze workflow.

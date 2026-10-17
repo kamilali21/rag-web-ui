@@ -1,15 +1,16 @@
 # Phase 12 — Researcher Portfolio and Publication Requests
 
-Status: implementation and synthetic live acceptance complete (16 October 2026).
-The recovery snapshot is tagged `researchiq-phase12-recovery-20261016`; the
-Master Plan PDF amendment remains outstanding, so Phase 12 is not formally
-closed and Phase 13 has not started.
+Status: formally complete (17 October 2026). Implementation and synthetic live
+acceptance completed on 16 October; the controlling Master Plan amendment was
+appended and visually reviewed on 17 October. Phase 13 is now the current gate.
 
 This is the Phase 12 insertion approved by the project owner. It preserves the
 existing architecture and phase gates. The earlier planned Phases 12–21 become
 Phases 13–22; completed phase numbers, commits, and historic tags are unchanged.
-The original dated Master Integration Plan PDF is preserved unchanged at the
-Projects root; the working-copy amendment remains outstanding.
+The dated original Master Integration Plan PDF remains unchanged at the Projects
+root. The amended working copy is committed at
+[`output/pdf/ResearchIQ_Master_Integration_Plan.pdf`](../output/pdf/ResearchIQ_Master_Integration_Plan.pdf)
+and synchronized to the working PDF at the Projects root.
 
 ## Scope
 
@@ -86,9 +87,9 @@ All implementation, regression, migration, frontend, typecheck, build and
 synthetic live acceptance gates passed. Live migration `riq_006` was applied
 only after the disposable-MySQL gate passed and a verified backup was created.
 The synthetic acceptance fixture was removed through the application lifecycle;
-counts returned to the recorded baseline. The recovery snapshot tag is
-`researchiq-phase12-recovery-20261016`. The working Master Plan PDF amendment
-remains pending, so Phase 12 is not formally closed and Phase 13 has not begun.
+counts returned to the recorded baseline. Recovery snapshot:
+`researchiq-phase12-recovery-20261016`. The amended plan formally closes Phase
+12 and defines the Phase 13 summary gate.
 
 ## Verification receipt
 
