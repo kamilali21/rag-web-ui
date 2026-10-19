@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { api } from "@/lib/api";
 import { Library } from "../library";
+import { PublicationRequestDialog } from "../researcher-publication-dialogs";
 
 jest.mock("@/lib/api", () => ({ ...jest.requireActual("@/lib/api"), api: { get: jest.fn(), post: jest.fn(), delete: jest.fn(), put: jest.fn() } }));
 jest.mock("../document-upload-steps", () => ({ DocumentUploadSteps: () => <div>Upload flow</div> }));
@@ -22,11 +23,9 @@ beforeEach(() => {
   jest.mocked(api.post).mockResolvedValue({ id: 12, status: "pending" });
 });
 
-test("private Library submits a single ready document with required metadata and explicit card consent", async () => {
+test("shared publication dialog submits a single ready document with required metadata and explicit card consent", async () => {
   const user = userEvent.setup();
-  render(<Library />);
-  await screen.findByText("study.pdf");
-  await user.click(screen.getByRole("button", { name: "Request publication" }));
+  render(<PublicationRequestDialog open onOpenChange={jest.fn()} onCreated={jest.fn()} />);
   const dialog = await screen.findByRole("dialog");
   await within(dialog).findByLabelText("Private document");
   await user.type(within(dialog).getByLabelText("Title"), "Water efficient farming");
@@ -52,9 +51,7 @@ test("publication request requires a profile before showing the submission form"
     throw new Error(`Unexpected API GET ${url}`);
   });
   const user = userEvent.setup();
-  render(<Library />);
-  await screen.findByText("study.pdf");
-  await user.click(screen.getByRole("button", { name: "Request publication" }));
+  render(<PublicationRequestDialog open onOpenChange={jest.fn()} onCreated={jest.fn()} />);
   const dialog = await screen.findByRole("dialog");
   expect(await within(dialog).findByText(/Complete your researcher profile/)).toBeInTheDocument();
   expect(within(dialog).getByRole("link", { name: "Open Profile" })).toHaveAttribute("href", "/dashboard/profile");

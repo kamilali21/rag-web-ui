@@ -49,6 +49,17 @@ show a summary action.
   records were changed. Existing chat, retrieval, and document behavior remained
   covered by the regression suite.
 
+## 19 October reliability follow-up
+
+A live repeat exposed a presentation-limit failure: valid provider JSON contained
+more than two findings, causing both generation attempts to fail validation.
+The bounded draft now validates up to eight claims per section and returns the
+first two only after validating every citation. Focused tests pass (23 passed,
+1 opt-in test skipped); two post-fix live summaries completed, with the warm
+request taking 9.6 seconds. Cold model loading remains slower. See
+[the follow-up record](dashboard-summary-followup-20261019.md) for evidence and
+the accompanying dashboard changes. Historical phase/checkpoint records are unchanged.
+
 ## Next gate
 
 Phase 14 is **Insights on real catalog data**. Follow the Phase 14 task in the

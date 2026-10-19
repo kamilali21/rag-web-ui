@@ -120,7 +120,7 @@ export function ResearcherProfile() {
         </div>
       </form>
 
-      <section className="researcher-requests"><div className="researcher-section-heading"><h2>Publication activity</h2><Button variant="outline" disabled={busy} onClick={() => setRefresh(value => value + 1)}>Refresh</Button></div>
+      <section id="publication-activity" className="researcher-requests"><div className="researcher-section-heading"><h2>Publication activity</h2><Button variant="outline" disabled={busy} onClick={() => setRefresh(value => value + 1)}>Refresh</Button></div>
         {requests.publications.length === 0 && <p className="text-muted-foreground">Your publication requests and published papers will appear here.</p>}
         <div className="researcher-request-list">{requests.publications.map(request => {
           const withdrawal = withdrawalByPublication.get(request.id);

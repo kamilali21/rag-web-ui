@@ -3,7 +3,7 @@
 <!-- Added by ChatGPT: implementation gates and evidence for the adaptable master plan. -->
 
 Source: version 1.0 of `ResearchIQ_Master_Integration_Plan.pdf` (15 September
-2026), governed by the appended 17 October amendment committed at
+2026), governed by the appended 17 October amendment and 19 October future-extension note at
 `output/pdf/ResearchIQ_Master_Integration_Plan.pdf`. The dated original remains
 byte-identical; the Projects-root working copy is synchronized to the amendment.
 
@@ -16,7 +16,27 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 14 - Insights on Real Catalog Data
+## Current Gate: Phase 15 - Compare with Evidence Persistence (not started)
+
+### Phase 14 closure - Insights on Real Catalog Data - 19 October 2026
+
+- Replaced sample Insights papers with an authenticated, bounded real catalog:
+  published/ready Public, owner-only ready Private, and their Both union.
+- Search, academic filters, cursor pagination and up-to-five selection reuse
+  Library styling. Compare/Analyse configuration revalidates exact IDs and opens
+  a temporary metadata workspace; no generated analysis or persisted runs yet.
+- Full backend: 383 passed, 42 skipped. Full frontend: 99 passed; corrected
+  Insights tests rerun: 9 passed. TypeScript and production frontend build passed.
+  Local deployment/served assets and health verified. Live nginx acceptance passed
+  on nine real public papers plus isolated synthetic ownership/readiness fixtures.
+- Existing application rows matched before/after synthetic cleanup; schema stays
+  `riq_006`; no Chroma changes. Browser visual inspection remains unavailable.
+- Checkpoint and deployment receipt: [Phase 14](phase14-insights.md), annotated
+  tag `researchiq-phase14-insights-20261019`. Includes the approved dashboard and
+  Phase 13 reliability [follow-up](dashboard-summary-followup-20261019.md).
+- Added future department/supervisor review scoping and similarity/plagiarism
+  assistance to the working PDF and [planning note](future-supervision-and-similarity-review.md).
+  These remain deferred, without renumbering or changing current permissions.
 
 ### Phase 13 closure - Structured Document Summaries - 17 October 2026
 
@@ -764,8 +784,8 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 1-11. Completed at the historical evidence and tags recorded above.
 12. Researcher profile, publication requests, consent and approved withdrawal: complete.
 13. Structured single-document summary with citations: complete; see the 17 October closure receipt above.
-14. Insights on real catalog data: current gate.
-15. Compare with evidence persistence.
+14. Insights on real catalog data: complete; see the 19 October receipt.
+15. Compare with evidence persistence: current gate, not started.
 16. Bounded Analyze workflow.
 17. Contradiction interpretation.
 18. Corpus-qualified candidate gaps.

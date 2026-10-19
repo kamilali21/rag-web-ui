@@ -17,21 +17,11 @@ from app.services.vector_store import VectorStoreFactory
 SourceScope = Literal["public", "private", "both"]
 
 
-def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_base_ids: list[int] | None = None,
-                  document_ids: list[int] | None = None) -> dict[int, list[int]]:
-    """Return KB -> ready document IDs, using SQL rather than client/vector claims.
-
-    Empty means no permitted sources; callers must not fall back to an unfiltered
-    search. Re-resolve before exposing evidence if an external request intervenes.
-    Private collection selections also apply inside Both conversations.
-    Exact document selections reject the entire request if any ID is unavailable.
-    """
+def ready_document_query(db: Session, actor: User, scope: SourceScope, *, knowledge_base_ids: list[int] | None = None):
+    """Shared SQL boundary for retrieval and bounded Insights catalog discovery."""
     require_active_user(actor)
     if scope not in {"public", "private", "both"}:
         raise HTTPException(422, "Scope must be public, private or both")
-    if document_ids is not None and (not isinstance(document_ids, list) or not 1 <= len(document_ids) <= 20
-            or any(type(value) is not int or value <= 0 for value in document_ids)):
-        raise HTTPException(422, "Select between 1 and 20 positive integer document IDs")
     if knowledge_base_ids is not None:
         if scope == "public":
             raise HTTPException(422, "Collection selection applies only to private sources")
@@ -51,9 +41,19 @@ def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_bas
         ProcessingTask.document_id == Document.id,
         ProcessingTask.knowledge_base_id == Document.knowledge_base_id,
     ).order_by(ProcessingTask.id.desc()).limit(1).scalar_subquery()
-    query = db.query(Document.knowledge_base_id, Document.id).join(KnowledgeBase).outerjoin(
+    return db.query(Document.knowledge_base_id, Document.id).join(KnowledgeBase).outerjoin(
         AcademicDocumentMetadata, AcademicDocumentMetadata.document_id == Document.id,
     ).filter(or_(*permitted), latest_status == "completed")
+
+
+def resolve_scope(db: Session, actor: User, scope: SourceScope, *, knowledge_base_ids: list[int] | None = None,
+                  document_ids: list[int] | None = None) -> dict[int, list[int]]:
+    """Return only permitted ready IDs; reject an entire invalid exact selection."""
+    require_active_user(actor)
+    if document_ids is not None and (not isinstance(document_ids, list) or not 1 <= len(document_ids) <= 20
+            or any(type(value) is not int or value <= 0 for value in document_ids)):
+        raise HTTPException(422, "Select between 1 and 20 positive integer document IDs")
+    query = ready_document_query(db, actor, scope, knowledge_base_ids=knowledge_base_ids)
     if document_ids is not None:
         query = query.filter(Document.id.in_(document_ids))
     rows = query.order_by(Document.knowledge_base_id, Document.id).all()

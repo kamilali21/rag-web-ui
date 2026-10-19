@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Book, BookOpen, CircleUser, Home, LockKeyhole, Menu, MessageSquare, Sparkles } from "lucide-react";
+import { Book, BookOpen, CircleUser, Home, Menu, MessageSquare, Sparkles } from "lucide-react";
 import Breadcrumb from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { api, ApiError } from "@/lib/api";
@@ -82,11 +82,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             pathname.startsWith(href) || (name === "Library" && pathname.startsWith("/dashboard/test-retrieval"));
           return (
             <Link key={href} href={href} aria-current={active ? "page" : undefined}
-              aria-label={name === "Insights" ? "Insights, locked preview" : undefined}
               className={`app-nav-link${active ? " is-active" : ""}`} onClick={() => setMenuOpen(false)}>
-              {name === "Insights" ? <span className="app-nav-insights-icon" aria-hidden="true">
-                <Icon size={24} strokeWidth={1.6} /><LockKeyhole size={12} />
-              </span> : <Icon size={24} strokeWidth={1.6} aria-hidden="true" />}
+              <Icon size={24} strokeWidth={1.6} aria-hidden="true" />
               <span>{name}</span>
             </Link>
           );

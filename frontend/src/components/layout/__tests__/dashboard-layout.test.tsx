@@ -26,10 +26,10 @@ test("hides API Keys from navigation and places Profile last", () => {
   expect(navigation[navigation.length - 1]).toMatchObject({ title: "Profile", href: "/dashboard/profile" });
 });
 
-test("shows Insights locked and opens the identity-backed account menu from the profile card", async () => {
+test("opens live Insights and the identity-backed account menu from the profile card", async () => {
   mockActivePath = "/dashboard/insights";
   render(<DashboardLayout><div>Page content</div></DashboardLayout>);
-  const insights = await screen.findByRole("link", { name: "Insights, locked preview" });
+  const insights = await screen.findByRole("link", { name: "Insights" });
   expect(insights).toHaveAttribute("href", "/dashboard/insights");
   const accountButton = await screen.findByRole("button", { name: "Open account menu" });
   expect(accountButton).toHaveTextContent("Amina Researcher");

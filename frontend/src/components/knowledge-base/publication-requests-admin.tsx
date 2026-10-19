@@ -15,7 +15,7 @@ type Detail = ReviewItem & { document?: { id: number; file_name: string; file_si
 const message = (error: unknown) => error instanceof ApiError ? error.message : "Request failed. Please try again.";
 const types = ["paper", "thesis", "report", "other"];
 
-export function PublicationRequestsAdmin({ onBack, onForbidden }: { onBack: () => void; onForbidden: () => void }) {
+export function PublicationRequestsAdmin({ onBack, onForbidden, backLabel = "Public Library" }: { onBack: () => void; onForbidden: () => void; backLabel?: string }) {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [selected, setSelected] = useState<Detail | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -79,7 +79,7 @@ export function PublicationRequestsAdmin({ onBack, onForbidden }: { onBack: () =
   const titleOf = (item: ReviewItem) => item.metadata?.title || item.title || item.source_file_name || `${item.request_type} request #${item.id}`;
 
   return <section className="list-page publication-review">
-    <header className="researcher-page-heading"><div><button className="corpus-back" onClick={onBack}><ArrowLeft size={16} /> Public Library</button>
+    <header className="researcher-page-heading"><div><button className="corpus-back" onClick={onBack}><ArrowLeft size={16} /> {backLabel}</button>
       <h1>Publication requests</h1><p>Review submissions and withdrawal requests.</p></div>
       <Button variant="outline" disabled={loading} onClick={() => setRefresh(value => value + 1)}><RefreshCw size={16} /> Refresh</Button>
     </header>

@@ -158,13 +158,12 @@ test("only authorized admins get Add Documents inside Manage corpus; completion 
   expect(screen.queryByRole("button", { name: /^(publish|delete|edit)$/i })).not.toBeInTheDocument();
 });
 
-test("corpus admins see the pending badge and can open publication review", async () => {
+test("publication review has moved to Dashboard while corpus management remains in Library", async () => {
   admin = true;
-  const user = await openPublic();
-  expect(await screen.findByLabelText("3 pending requests")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /Requests/ }));
-  expect(await screen.findByRole("heading", { name: "Publication requests" })).toBeInTheDocument();
-  expect(api.get).toHaveBeenCalledWith("/api/researcher/admin", expect.anything());
+  await openPublic();
+  expect(screen.queryByRole("button", { name: /Requests/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Manage corpus" })).toBeInTheDocument();
+  expect(api.get).not.toHaveBeenCalledWith("/api/researcher/admin/count", expect.anything());
 });
 
 test("a revoked admin loses the uploader on server denial", async () => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, ChevronLeft, ChevronRight, FolderCog, Loader2, LockKeyhole, Plus, RefreshCw, Search, Send, Settings, Trash2, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, FolderCog, Loader2, LockKeyhole, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { documentSize, documentStatus, filenameFilters, LibraryCollection, LibraryDocument } from "@/lib/library";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -160,9 +160,6 @@ function PrivateLibrary({ knowledgeBaseId, scopeControl }: { knowledgeBaseId?: n
         <div className="library-title"><h1>Library</h1><LockKeyhole size={27} strokeWidth={1.8} aria-label="Private library" /></div>
         {scopeControl}
         <div className="library-heading-actions">
-          <Button className="primary-action premium-action" onClick={() => setPublicationOpen(true)} disabled={loading || !!error}>
-            <Send size={18} aria-hidden="true" /> Request publication
-          </Button>
           <Button className="primary-action premium-action" onClick={openUpload} disabled={loading || !!error}>
             <Plus size={21} strokeWidth={1.6} aria-hidden="true" /> Add Documents
           </Button>
