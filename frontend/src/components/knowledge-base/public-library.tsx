@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bookmark, BookOpen, ChevronLeft, ChevronRight, File, Filter, Globe, Loader2, MessageSquare, RefreshCw, Search, Settings2, X } from "lucide-react";
+import { Bookmark, BookOpen, ChevronLeft, ChevronRight, ClipboardList, File, Filter, Globe, Loader2, MessageSquare, RefreshCw, Search, Settings2, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { documentSize } from "@/lib/library";
 import { Department, emptyPublicFilters, PUBLIC_PAGE_SIZE, PublicDocument, publicDocumentsUrl } from "@/lib/public-library";
 import { Button } from "@/components/ui/button";
 import { PublicDocumentDetails, PublicQuery } from "./public-library-dialogs";
 import { CorpusManager } from "./corpus-manager";
+import { PublicationRequestsAdmin } from "./publication-requests-admin";
 
 // Added by ChatGPT: published server-side catalog; no private KB IDs or private upload components enter this view.
 export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode }) {
@@ -28,6 +29,8 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
   const [bookmarkError, setBookmarkError] = useState("");
   const [listVersion, setListVersion] = useState(0);
   const [managing, setManaging] = useState(false);
+  const [reviewingRequests, setReviewingRequests] = useState(false);
+  const [requestCount, setRequestCount] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,7 +81,16 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
     setContext(value => value && { ...value, canUpload: false });
     setPermissionNotice("Your public upload permission is no longer available.");
     setManaging(false);
+    setReviewingRequests(false);
   }, []);
+  useEffect(() => {
+    if (!context?.canUpload) { setRequestCount(null); return; }
+    const controller = new AbortController();
+    api.get("/api/researcher/admin/count", { signal: controller.signal, cache: "no-store" })
+      .then((result: { count: number }) => { if (!controller.signal.aborted) setRequestCount(result.count); })
+      .catch(failure => { if (!controller.signal.aborted) { setRequestCount(null); if (failure instanceof ApiError && failure.status === 403) forbidden(); } });
+    return () => controller.abort();
+  }, [context?.canUpload, refresh, forbidden]);
   const clearFilters = () => { setDraft(emptyPublicFilters); setFilters(emptyPublicFilters); setCursors([null]); };
   const visible = documents.slice(0, PUBLIC_PAGE_SIZE);
   const failure = contextError || error;
@@ -87,6 +99,7 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
 
   // Added by ChatGPT: management is a separate admin surface; Public remains published-only.
   if (managing && context?.canUpload) return <CorpusManager onBack={() => { setManaging(false); setRefresh(value => value + 1); }} onForbidden={forbidden} />;
+  if (reviewingRequests && context?.canUpload) return <PublicationRequestsAdmin onBack={() => { setReviewingRequests(false); setRefresh(value => value + 1); }} onForbidden={forbidden} />;
 
   return <section className="list-page" aria-label="Public library">
     <div className="library-heading">
@@ -95,6 +108,9 @@ export function PublicLibrary({ scopeControl }: { scopeControl: React.ReactNode 
       <div className="library-heading-actions">
         {context?.canUpload && <button className="icon-button" title="Manage corpus" aria-label="Manage corpus" onClick={() => setManaging(true)}><Settings2 size={21} /></button>}
         <Button className="primary-action premium-action" onClick={() => setQueryOpen(true)} disabled={!context || !!contextError}><MessageSquare size={18} /> Query corpus</Button>
+        {context?.canUpload && <Button className="primary-action premium-action request-queue-action" onClick={() => setReviewingRequests(true)} disabled={!!contextError}>
+          <ClipboardList size={18} /> Requests{requestCount !== null && requestCount > 0 && <span className="request-count-badge" aria-label={`${requestCount} pending requests`}>{requestCount > 99 ? "99+" : requestCount}</span>}
+        </Button>}
       </div>
     </div>
     <h2 className="public-corpus-name">{context?.name || "UAF Research Corpus"}</h2>

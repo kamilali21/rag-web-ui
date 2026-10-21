@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, BookOpen, ClipboardList, Globe, MessageSquare, Moon, RefreshCw, Send, Sun } from "lucide-react";
+import { ArrowUpRight, BookOpen, ClipboardList, Globe, MessageSquare, Moon, RefreshCw, Sun } from "lucide-react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { PublicationRequestDialog } from "@/components/knowledge-base/researcher-publication-dialogs";
 import { PublicationRequestsAdmin } from "@/components/knowledge-base/publication-requests-admin";
@@ -108,7 +108,6 @@ export default function DashboardPage() {
       </>}
       <div className="dashboard-links">
         <Link href="/dashboard/chat/new"><MessageSquare size={20} aria-hidden="true" /> New conversation</Link>
-        {data?.admin && <button type="button" onClick={() => setPublicationOpen(true)}><Send size={20} aria-hidden="true" /> Request publication</button>}
       </div>
     </>}
     <PublicationRequestDialog open={publicationOpen} onOpenChange={setPublicationOpen} onCreated={() => setRefresh(value => value + 1)} />
