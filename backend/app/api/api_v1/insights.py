@@ -7,6 +7,8 @@ from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models import User
 from app.services import insights_catalog
+from app.services import comparison
+from app.schemas.comparison import ComparisonRequest
 
 router = APIRouter()
 Database = Annotated[Session, Depends(get_db)]
@@ -50,3 +52,13 @@ def document(document_id: int, db: Database, actor: Actor, scope: Scope = "publi
 def validate_selection(payload: SelectionRequest, db: Database, actor: Actor):
     return {"scope": payload.scope, "mode": payload.mode,
             "documents": insights_catalog.selection(db, actor, payload.scope, payload.document_ids)}
+
+
+@router.post("/comparisons")
+def create_comparison(payload: ComparisonRequest, db: Database, actor: Actor):
+    return comparison.compare(db, actor, payload)
+
+
+@router.get("/comparisons/{run_id}")
+def read_comparison(run_id: int, db: Database, actor: Actor):
+    return comparison.read_run(db, actor, run_id)

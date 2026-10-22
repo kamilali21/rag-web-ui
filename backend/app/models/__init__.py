@@ -7,6 +7,7 @@ from .authorization import Role, AdminAllowlist, user_roles
 from .authentication import EmailOTP, AuthSession, AuthRateLimit
 from .research import Department, AcademicDocumentMetadata, Bookmark
 from .researcher import ResearcherProfile, PublicationRequest, WithdrawalRequest
+from .analysis import AnalysisRun, AnalysisDocument, AnalysisEvidence
 
 __all__ = [
     "User",
@@ -19,4 +20,5 @@ __all__ = [
     "Role", "AdminAllowlist", "user_roles", "EmailOTP", "AuthSession", "AuthRateLimit",
     "Department", "AcademicDocumentMetadata", "Bookmark",
     "ResearcherProfile", "PublicationRequest", "WithdrawalRequest",
+    "AnalysisRun", "AnalysisDocument", "AnalysisEvidence",
 ]

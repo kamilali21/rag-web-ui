@@ -9,6 +9,9 @@ const paper = (id: number, scope = "public") => ({ id, knowledge_base_id: scope 
   authors_text: "Ayesha", department_id: 2, department_name: "Agronomy", document_type: "paper", publication_year: 2025,
   abstract: "Irrigation evidence", publication_status: "published", created_at: "2026-10-19T10:00:00" });
 const rows = [paper(9), paper(8)];
+const compared = (documents = rows) => ({ id: 12, status: "complete", result: { documents, question: "", notice: "Selected evidence only.",
+  compatibility: { label: "Different domains", explanation: "Different contexts limit comparison.", citations: [] },
+  criteria: [{ criterion: "objective", title: "Research objective/question", values: documents.map(doc => ({ document_id: doc.id, unavailable: true, claims: [] })) }] } });
 const get = async (url: string): Promise<any> => {
   if (url.startsWith("/api/insights/documents?")) return { items: url.includes("scope=private") ? [paper(3, "private")] : rows, has_more: false };
   if (url.startsWith("/api/departments?")) return [{ id: 2, name: "Agronomy", code: "AGR", is_active: true }];
@@ -18,8 +21,9 @@ const get = async (url: string): Promise<any> => {
   throw new Error(`Unexpected GET ${url}`);
 };
 beforeEach(() => {
+  window.history.replaceState(null, "", "/dashboard/insights");
   jest.clearAllMocks(); jest.mocked(api.get).mockImplementation(get);
-  jest.mocked(api.post).mockResolvedValue({ documents: rows, scope: "public", mode: "compare" });
+  jest.mocked(api.post).mockImplementation(async url => url === "/api/insights/comparisons" ? compared() : { documents: rows, scope: "public", mode: "analyse" });
 });
 async function open() { const user = userEvent.setup(); render(<Insights />); await screen.findByRole("table", { name: "Research documents" }); return user; }
 
@@ -55,7 +59,7 @@ test("sends combined server filters, year range and scope; scope change clears s
 test("pagination retains selected IDs from previous pages and rechecks them before comparison", async () => {
   jest.mocked(api.get).mockImplementation(async url => url.startsWith("/api/insights/documents?") ?
     url.includes("before_id=8") ? { items: [paper(7)], has_more: false } : { items: rows, has_more: true } : get(url));
-  jest.mocked(api.post).mockResolvedValue({ documents: [rows[0], { ...paper(7), title: "Updated metadata" }] });
+  jest.mocked(api.post).mockResolvedValue(compared([rows[0], { ...paper(7), title: "Updated metadata" }]));
   const user = await open();
   await user.click(screen.getByRole("checkbox", { name: "Select Research paper 9" }));
   await user.click(screen.getByRole("button", { name: "Next page" }));
@@ -63,10 +67,10 @@ test("pagination retains selected IDs from previous pages and rechecks them befo
   expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "Compare" }));
   const dialog = within(screen.getByRole("dialog"));
-  await user.click(dialog.getByRole("button", { name: "Open workspace" }));
+  await user.click(dialog.getByRole("button", { name: "Generate comparison" }));
   await dialog.findByText("Updated metadata");
-  expect(api.post).toHaveBeenCalledWith("/api/insights/selection", { scope: "public", mode: "compare", document_ids: [9, 7] }, expect.anything());
-  expect(dialog.getByText(/No AI findings have been generated/)).toBeInTheDocument();
+  expect(api.post).toHaveBeenCalledWith("/api/insights/comparisons", { scope: "public", document_ids: [9, 7], criteria: ["objective", "methodology", "findings", "limitations"], question: "", request_id: expect.any(String) }, expect.anything());
+  expect(dialog.getByText(/Interpret direct comparisons cautiously/)).toBeInTheDocument();
   await user.keyboard("{Escape}");
   expect(screen.getByRole("button", { name: "Compare" })).toHaveFocus();
 });
@@ -87,11 +91,11 @@ test("revoked selection shows an error and never opens a fake result; retry reva
   await user.click(screen.getByRole("checkbox", { name: "Select visible documents" }));
   await user.click(screen.getByRole("button", { name: "Compare" }));
   const dialog = within(screen.getByRole("dialog"));
-  await user.click(dialog.getByRole("button", { name: "Open workspace" }));
+  await user.click(dialog.getByRole("button", { name: "Generate comparison" }));
   expect(await dialog.findByRole("alert")).toHaveTextContent("Selected documents are unavailable");
   expect(dialog.queryByRole("table")).not.toBeInTheDocument();
-  await user.click(dialog.getByRole("button", { name: "Open workspace" }));
-  expect(await dialog.findByRole("table", { name: "Verified document metadata" })).toBeInTheDocument();
+  await user.click(dialog.getByRole("button", { name: "Generate comparison" }));
+  expect(await dialog.findByRole("table", { name: "Evidence-backed research comparison" })).toBeInTheDocument();
 });
 
 test("analysis allows one document but contradictions configuration needs two", async () => {

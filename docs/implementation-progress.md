@@ -16,7 +16,29 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 15 - Compare with Evidence Persistence (not started)
+## Current Gate: Phase 16 - Bounded Analyze Workflow (not started)
+
+### Phase 15 closure - 22 October 2026
+
+- Implemented exact-document comparison of 2-5 selected papers, structured
+  criteria, validated citations, compatibility interpretation and owner-private
+  saved results/evidence snapshots. Analyse is the next gate.
+- Backend: 413 passed, 43 skipped; focused comparison: 30 passed. Disposable
+  MySQL migration: 1 passed. Frontend: 103 passed; TypeScript and production build passed.
+- Deployed frontend and backend source; applied additive revision `riq_007`
+  after a local SQL backup. All values in the 22 original tables were unchanged
+  immediately after migration. Health, served comparison assets and anonymous
+  API rejection were verified.
+- The user clarified on 22 October that declining live acceptance was accidental.
+  Synthetic public/private upload/indexing, provider comparison (6.28 seconds),
+  citations, saved reopening/idempotency, PDF access and revocation checks passed.
+  Cleanup confirmed original SQL rows, MinIO objects and vector IDs unchanged.
+  Browser visual inspection remains unavailable; frontend rendering tests pass.
+- Receipt and recovery notes: [Phase 15](phase15-comparison.md). Annotated tag:
+  `researchiq-phase15-compare-20261022`.
+- Restored Library publication request actions and removed only the admin
+  dashboard submission shortcut in `c506539`, tagged
+  `researchiq-library-actions-20261021`.
 
 ### Phase 14 closure - Insights on Real Catalog Data - 19 October 2026
 
@@ -785,7 +807,7 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 12. Researcher profile, publication requests, consent and approved withdrawal: complete.
 13. Structured single-document summary with citations: complete; see the 17 October closure receipt above.
 14. Insights on real catalog data: complete; see the 19 October receipt.
-15. Compare with evidence persistence: current gate, not started.
+15. Compare with evidence persistence: complete; see 22 October receipt.
 16. Bounded Analyze workflow.
 17. Contradiction interpretation.
 18. Corpus-qualified candidate gaps.

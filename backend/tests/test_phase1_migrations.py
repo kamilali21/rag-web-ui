@@ -16,11 +16,12 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, configure_mappers
 
 BASELINE = "3580c0dcd005"
-HEAD = "riq_006"
+HEAD = "riq_007"
 NEW_TABLES = {
     "roles", "user_roles", "departments", "admin_allowlist", "email_otps",
     "auth_sessions", "auth_rate_limits", "academic_document_metadata", "bookmarks",
     "researcher_profiles", "publication_requests", "withdrawal_requests",
+    "analysis_runs", "analysis_documents", "analysis_evidence",
 }
 
 
