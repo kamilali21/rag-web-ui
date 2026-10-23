@@ -8,6 +8,8 @@ from app.db.session import get_db
 from app.models import User
 from app.services import insights_catalog
 from app.services import comparison
+from app.services import research_analysis
+from app.schemas.research_analysis import AnalysisRequest
 from app.schemas.comparison import ComparisonRequest
 
 router = APIRouter()
@@ -62,3 +64,13 @@ def create_comparison(payload: ComparisonRequest, db: Database, actor: Actor):
 @router.get("/comparisons/{run_id}")
 def read_comparison(run_id: int, db: Database, actor: Actor):
     return comparison.read_run(db, actor, run_id)
+
+
+@router.post("/analyses")
+def create_analysis(payload: AnalysisRequest, db: Database, actor: Actor):
+    return research_analysis.analyze(db, actor, payload)
+
+
+@router.get("/analyses/{run_id}")
+def read_analysis(run_id: int, db: Database, actor: Actor):
+    return comparison.read_run(db, actor, run_id, "analyze")

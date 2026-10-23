@@ -98,14 +98,15 @@ test("revoked selection shows an error and never opens a fake result; retry reva
   expect(await dialog.findByRole("table", { name: "Evidence-backed research comparison" })).toBeInTheDocument();
 });
 
-test("analysis allows one document but contradictions configuration needs two", async () => {
+test("analysis allows one document and discloses bounded related discovery", async () => {
   const user = await open();
   await user.click(screen.getByRole("checkbox", { name: "Select Research paper 9" }));
   await user.click(screen.getByRole("button", { name: "Analyse" }));
   const dialog = within(screen.getByRole("dialog"));
-  expect(dialog.getByRole("button", { name: "Open workspace" })).toBeEnabled();
-  await user.selectOptions(dialog.getByLabelText("Analysis focus"), "Contradictions");
-  expect(dialog.getByRole("button", { name: "Open workspace" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Generate analysis" })).toBeEnabled();
+  expect(dialog.getByRole("checkbox", { name: "Include up to 3 related public papers" })).toBeChecked();
+  expect(dialog.getByText(/at most 20 metadata-matched public papers/)).toBeInTheDocument();
+  expect(dialog.queryByLabelText("Analysis focus")).not.toBeInTheDocument();
   expect(api.post).not.toHaveBeenCalled();
 });
 

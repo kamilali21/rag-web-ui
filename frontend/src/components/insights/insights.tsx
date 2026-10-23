@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { PublicDocumentDetails } from "@/components/knowledge-base/public-library-dialogs";
 import { PrivateInsightsDetails } from "./document-details";
 import { ComparisonResult } from "./comparison-result";
+import { AnalysisWorkflow } from "./analysis-workflow";
 import { comparisonCriteria, comparisonRequestId, ComparisonRun } from "@/lib/comparison";
 import { api, ApiError } from "@/lib/api";
 import { Department } from "@/lib/public-library";
@@ -14,7 +15,6 @@ import { documentSize } from "@/lib/library";
 import { emptyInsightsFilters, InsightsDocument, InsightsMode, InsightsScope, insightsDocumentsUrl, MAX_INSIGHTS_DOCUMENTS } from "@/lib/insights";
 
 const dimensions = Object.keys(comparisonCriteria);
-const analysisTypes = ["Research overview", "Research gaps", "Contradictions"];
 const message = (error: unknown) => error instanceof ApiError ? error.message : "Unable to load Insights. Please retry.";
 
 export function Insights() {
@@ -33,7 +33,6 @@ export function Insights() {
   const [selected, setSelected] = useState<InsightsDocument[]>([]);
   const [details, setDetails] = useState<InsightsDocument | null>(null);
   const [mode, setMode] = useState<InsightsMode | null>(null);
-  const [workspace, setWorkspace] = useState<InsightsDocument[] | null>(null);
   const [validating, setValidating] = useState(false);
   const [validationError, setValidationError] = useState("");
   const [chosenDimensions, setChosenDimensions] = useState(["objective", "methodology", "findings", "limitations"]);
@@ -41,12 +40,13 @@ export function Insights() {
   const [savedId, setSavedId] = useState<number | null>(null);
   const [reloadSaved, setReloadSaved] = useState(0);
   const requestKey = useRef<{ body: string; id: string } | null>(null);
-  const [analysisType, setAnalysisType] = useState(analysisTypes[0]);
   const [question, setQuestion] = useState("");
   const actionTrigger = useRef<HTMLButtonElement | null>(null);
   const validation = useRef<AbortController | null>(null);
   useEffect(() => () => validation.current?.abort(), []);
   useEffect(() => {
+    const analysisId = Number(new URLSearchParams(window.location.search).get("analysis"));
+    if (Number.isSafeInteger(analysisId) && analysisId > 0) { setMode("analyse"); return; }
     const id = Number(new URLSearchParams(window.location.search).get("comparison"));
     if (!Number.isSafeInteger(id) || id <= 0) return;
     const controller = new AbortController(); validation.current = controller;
@@ -89,14 +89,14 @@ export function Insights() {
     : [...previous, ...documents.filter(row => !previous.some(item => item.id === row.id))].slice(0, MAX_INSIGHTS_DOCUMENTS));
   const resetFilters = () => { setDraft(emptyInsightsFilters); setFilters(emptyInsightsFilters); setCursors([null]); };
   const filterCount = Object.entries(filters).filter(([key, value]) => key !== "search" && !!value).length;
-  const minimum = mode === "compare" || analysisType === "Contradictions" ? 2 : 1;
+  const minimum = 2;
   const closeWorkflow = () => {
     validation.current?.abort(); setMode(null); setValidating(false); setSavedId(null);
-    const url = new URL(window.location.href); url.searchParams.delete("comparison");
+    const url = new URL(window.location.href); url.searchParams.delete("comparison"); url.searchParams.delete("analysis");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   };
   const openWorkflow = (next: InsightsMode, trigger: HTMLButtonElement) => {
-    actionTrigger.current = trigger; setMode(next); setWorkspace(null); setComparison(null); setSavedId(null); setValidationError(""); requestKey.current = null;
+    actionTrigger.current = trigger; setMode(next); setComparison(null); setSavedId(null); setValidationError(""); requestKey.current = null;
   };
   const prepare = async () => {
     validation.current?.abort(); const controller = new AbortController(); validation.current = controller;
@@ -109,8 +109,6 @@ export function Insights() {
         if (!controller.signal.aborted) setComparison(run);
         return;
       }
-      const result: { documents: InsightsDocument[] } = await api.post("/api/insights/selection", { scope, mode, document_ids: selected.map(row => row.id) }, { signal: controller.signal });
-      if (!controller.signal.aborted) { setWorkspace(result.documents); setSelected(result.documents); }
     } catch (failure) { if (!controller.signal.aborted) { setValidationError(message(failure)); if (failure instanceof ApiError && failure.status > 0) requestKey.current = null; } }
     finally { if (!controller.signal.aborted) setValidating(false); }
   };
@@ -126,7 +124,7 @@ export function Insights() {
         <Button className="primary-action premium-action" disabled={!selected.length} onClick={event => openWorkflow("analyse", event.currentTarget)}><Sparkles size={18} /> Analyse</Button>
       </div>
     </div>
-    <p className="insights-catalog-note">Explore ready papers and select two to five for an evidence-backed comparison. Deeper research analysis is coming next.</p>
+    <p className="insights-catalog-note">Explore ready papers. Compare two to five studies, or analyse selected research with cited profiles and related evidence.</p>
     <form className="public-library-filters" onSubmit={event => { event.preventDefault(); setFilters({ ...draft }); setCursors([null]); }}>
       <div className="library-search">
         <button type="submit" className="icon-button" aria-label="Search documents"><Search size={23} strokeWidth={1.6} /></button>
@@ -168,20 +166,15 @@ export function Insights() {
     {details?.scope === "public" && <PublicDocumentDetails id={details.id} onClose={() => setDetails(null)} />}
     {details?.scope === "private" && <PrivateInsightsDetails id={details.id} onClose={() => setDetails(null)} />}
     <Dialog open={mode !== null} onOpenChange={open => { if (!open) closeWorkflow(); }}><DialogContent className="insights-dialog" onCloseAutoFocus={event => { if (actionTrigger.current) { event.preventDefault(); actionTrigger.current.focus(); } }}>
-      <DialogHeader><DialogTitle>{mode === "compare" ? "Compare documents" : "Analyse research"}</DialogTitle><DialogDescription>{mode === "compare" ? "Compare selected papers using cited passages. Results are saved privately and source access is checked again when reopened." : workspace ? "Current access and processing readiness verified. This workspace is temporary." : "Configure your selection. Each document will be checked again before opening."}</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{mode === "compare" ? "Compare documents" : "Analyse research"}</DialogTitle><DialogDescription>{mode === "compare" ? "Compare selected papers using cited passages. Results are saved privately and source access is checked again when reopened." : "Build research profiles and a bounded, cited synthesis. Results are saved privately and source access is checked again when reopened."}</DialogDescription></DialogHeader>
       {validationError && <p role="alert">{validationError}</p>}
-      {comparison ? <><ComparisonResult run={comparison} /><div className="insights-dialog-actions"><Button variant="outline" onClick={() => { setComparison(null); setSavedId(null); requestKey.current = null; closeWorkflow(); }}>Close comparison</Button>{comparison.status === "processing" && <Button asChild><a href={`/dashboard/insights?comparison=${comparison.id}`}>Reload saved comparison</a></Button>}</div></> : savedId ? <><p role="status">{validating ? "Loading saved comparison..." : "Saved comparison unavailable."}</p><Button disabled={validating} onClick={() => setReloadSaved(value => value + 1)}>Retry saved comparison</Button></> : !workspace ? <>
+      {mode === "analyse" ? <AnalysisWorkflow selected={selected} scope={scope} toggle={toggle} onClose={closeWorkflow} /> : comparison ? <><ComparisonResult run={comparison} /><div className="insights-dialog-actions"><Button variant="outline" onClick={() => { setComparison(null); setSavedId(null); requestKey.current = null; closeWorkflow(); }}>Close comparison</Button>{comparison.status === "processing" && <Button asChild><a href={`/dashboard/insights?comparison=${comparison.id}`}>Reload saved comparison</a></Button>}</div></> : savedId ? <><p role="status">{validating ? "Loading saved comparison..." : "Saved comparison unavailable."}</p><Button disabled={validating} onClick={() => setReloadSaved(value => value + 1)}>Retry saved comparison</Button></> : <>
         <div className="insights-picker" role="group" aria-label="Selected documents">{selected.map(row => <label key={row.id}><input type="checkbox" checked disabled={validating} onChange={() => toggle(row)} /><span>{row.title}<small>{row.scope} / {row.authors_text || "Author not recorded"}</small></span></label>)}</div>
-        {mode === "compare" ? <fieldset className="insights-options"><legend>Compare by</legend>{dimensions.map(dimension => <label key={dimension}><input type="checkbox" disabled={validating} checked={chosenDimensions.includes(dimension)} onChange={() => setChosenDimensions(previous => previous.includes(dimension) ? previous.filter(item => item !== dimension) : [...previous, dimension])} />{comparisonCriteria[dimension]}</label>)}</fieldset> : <label className="insights-field">Analysis focus<select disabled={validating} value={analysisType} onChange={event => setAnalysisType(event.target.value)}>{analysisTypes.map(type => <option key={type}>{type}</option>)}</select></label>}
+        <fieldset className="insights-options"><legend>Compare by</legend>{dimensions.map(dimension => <label key={dimension}><input type="checkbox" disabled={validating} checked={chosenDimensions.includes(dimension)} onChange={() => setChosenDimensions(previous => previous.includes(dimension) ? previous.filter(item => item !== dimension) : [...previous, dimension])} />{comparisonCriteria[dimension]}</label>)}</fieldset>
         <label className="insights-field">Research question (optional)<textarea rows={2} maxLength={1000} disabled={validating} value={question} onChange={event => setQuestion(event.target.value)} /></label>
-        <p className="insights-workflow-note">Select {minimum}–{MAX_INSIGHTS_DOCUMENTS} documents. {mode === "compare" ? "Only selected papers contribute evidence. Missing information will be marked explicitly." : "Evidence-backed analysis is coming soon; this step prepares your selected papers."}</p>
+        <p className="insights-workflow-note">Select {minimum}–{MAX_INSIGHTS_DOCUMENTS} documents. Only selected papers contribute evidence. Missing information will be marked explicitly.</p>
         {validating && mode === "compare" && <p role="status">Retrieving each paper's evidence and generating the comparison. Closing this dialog does not cancel server processing.</p>}
-        <div className="insights-dialog-actions"><Button variant="outline" onClick={closeWorkflow}>Cancel</Button><Button disabled={validating || selected.length < minimum || (mode === "compare" && !chosenDimensions.length)} onClick={() => void prepare()}>{validating ? mode === "compare" ? "Comparing papers..." : "Checking documents..." : mode === "compare" ? "Generate comparison" : "Open workspace"}</Button></div>
-      </> : <>
-        <p className="insights-workflow-note">Selection verified. {mode === "compare" ? `Comparison dimensions: ${chosenDimensions.join(", ")}.` : `Analysis focus: ${analysisType}.`} No AI findings have been generated.</p>
-        {question.trim() && <p className="insights-question">{question}</p>}
-        <div className="insights-comparison-scroll" tabIndex={0} role="region" aria-label="Selected document metadata"><table className="insights-comparison"><caption className="sr-only">Verified document metadata</caption><thead><tr><th scope="col">Document</th>{workspace.map(row => <th scope="col" key={row.id}>{row.title}</th>)}</tr></thead><tbody>{(["scope", "authors_text", "department_name", "publication_year"] as const).map((key, i) => <tr key={key}><th scope="row">{["Library", "Author", "Department", "Year"][i]}</th>{workspace.map(row => <td key={row.id}>{row[key] || "Not recorded"}</td>)}</tr>)}</tbody></table></div>
-        <div className="insights-dialog-actions"><Button variant="outline" onClick={() => { setWorkspace(null); setValidationError(""); }}>Edit selection</Button><Button onClick={closeWorkflow}>Done</Button></div>
+        <div className="insights-dialog-actions"><Button variant="outline" onClick={closeWorkflow}>Cancel</Button><Button disabled={validating || selected.length < minimum || !chosenDimensions.length} onClick={() => void prepare()}>{validating ? "Comparing papers..." : "Generate comparison"}</Button></div>
       </>}
     </DialogContent></Dialog>
   </section>;

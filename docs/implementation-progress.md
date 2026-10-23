@@ -16,7 +16,21 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 16 - Bounded Analyze Workflow (not started)
+## Current Gate: Phase 17 - Contradiction / Evidence Interpretation (not started)
+
+### Phase 16 closure - 23 October 2026
+
+- Added selected-paper research profiles, bounded related public discovery and
+  seven cited synthesis sections, with saved evidence, permission rechecks and
+  reopening inside Insights. No schema change; database remains at `riq_007`.
+- Backend regression: 444 passed, 43 skipped; final affected suite after provider
+  corrections: 69 passed. Frontend: 109 passed; TypeScript and production build passed.
+- Synthetic Analyse passed in 83.65 seconds. A separate final comparison regression
+  passed in 27.95 seconds after correcting mandatory reasoning, transient routing
+  and SDK truncation handling. Original SQL/object/vector snapshots matched after cleanup.
+- Frontend and backend source deployed; health, served assets and anonymous access
+  checks passed. Browser visual inspection remains unavailable.
+- Receipt: [Phase 16](phase16-analyze.md). Tag: `researchiq-phase16-analyze-20261023`.
 
 ### Phase 15 closure - 22 October 2026
 
@@ -808,7 +822,7 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 13. Structured single-document summary with citations: complete; see the 17 October closure receipt above.
 14. Insights on real catalog data: complete; see the 19 October receipt.
 15. Compare with evidence persistence: complete; see 22 October receipt.
-16. Bounded Analyze workflow.
+16. Bounded Analyze workflow: complete; see 23 October receipt.
 17. Contradiction interpretation.
 18. Corpus-qualified candidate gaps.
 19. Analysis history.

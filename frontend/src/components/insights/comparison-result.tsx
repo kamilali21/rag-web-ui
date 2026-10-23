@@ -6,7 +6,7 @@ function sourceUrl(source: ComparisonEvidence) {
     : `/api/knowledge-base/${source.knowledge_base_id}/documents/${source.document_id}/content?inline=true`;
   return path + (source.page === null ? "" : `#page=${source.page + 1}`);
 }
-function Citations({ sources }: { sources: ComparisonEvidence[] }) {
+export function Citations({ sources }: { sources: ComparisonEvidence[] }) {
   return <span className="document-summary-citations" aria-label="Supporting evidence">{sources.map(source => <a key={source.evidence_id} href={sourceUrl(source)} target="_blank" rel="noopener noreferrer"
     aria-label={`Open ${source.file_name}${source.page === null ? "" : `, page ${source.page + 1}`}`} title={source.excerpt}>
     [{source.evidence_id}]{source.page === null ? "" : ` p. ${source.page + 1}`}</a>)}</span>;

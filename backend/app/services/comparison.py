@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 from fastapi import HTTPException
 from langchain_core.messages import HumanMessage, SystemMessage
-from openai import APIError, RateLimitError
+from openai import APIError, RateLimitError, LengthFinishReasonError
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
@@ -39,8 +39,8 @@ Allow interdisciplinary comparison; do not equate different domains with invalid
 Return JSON only. No HTML, CSS, Markdown tables or additional keys. Never put citation markers inside claim text."""
 
 
-def strict_schema():
-    schema = ComparisonDraft.model_json_schema()
+def strict_schema(model=ComparisonDraft):
+    schema = model.model_json_schema()
     definitions = schema.pop("$defs", {})
     def expand(value):
         if isinstance(value, list):
@@ -55,45 +55,75 @@ def strict_schema():
 
 
 def generate(request, evidence):
-    model = LLMFactory.create(streaming=False).bind(max_tokens=min(9000, 600 + 140 * len(request.document_ids) * len(request.criteria)))
+    return generate_structured(ComparisonDraft, SYSTEM, {
+        "document_ids": request.document_ids, "criteria": request.criteria,
+        "research_question": request.question, "evidence": evidence},
+        min(10000, max(4000, 1800 + 160 * len(request.document_ids) * len(request.criteria))), "Comparison")
+
+
+def generate_structured(schema, system, payload, max_tokens, label):
+    """Shared bounded provider policy for comparison and staged research analysis."""
+    model = LLMFactory.create(streaming=False).bind(max_tokens=max_tokens)
     if settings.CHAT_PROVIDER.lower() == "openai":
         if urlparse(settings.OPENAI_API_BASE).hostname == "openrouter.ai":
             model = model.bind(response_format={"type": "json_schema", "json_schema": {
-                "name": "researchiq_comparison", "strict": True, "schema": strict_schema()}},
-                extra_body={"reasoning": {"enabled": False}, "provider": {"require_parameters": True}})
+                "name": "researchiq_analysis", "strict": True, "schema": strict_schema(schema)}},
+                # The free router can select endpoints with mandatory reasoning.
+                # Use low effort instead of disabling it; defaults can consume the
+                # response budget and delay these bounded structured workflows.
+                extra_body={"reasoning": {"effort": "low", "exclude": True},
+                            "provider": {"require_parameters": True}})
         else:
             model = model.bind(response_format={"type": "json_object"})
-    prompt = [SystemMessage(content=SYSTEM), HumanMessage(content=json.dumps({
-        "document_ids": request.document_ids, "criteria": request.criteria,
-        "research_question": request.question, "evidence": evidence}, ensure_ascii=False))]
+    prompt = [SystemMessage(content=system), HumanMessage(content=json.dumps(payload, ensure_ascii=False))]
     for attempt in range(2):
         try:
             result = model.invoke(prompt)
+        except LengthFinishReasonError:
+            if attempt:
+                raise HTTPException(502, f"{label} exceeded its response limit. Please retry with fewer papers or criteria.") from None
+            model = model.bind(max_tokens=min(12000, max_tokens * 2))
+            prompt.append(HumanMessage(content="Regenerate concise complete JSON. Use one short claim per field and only the original evidence and IDs."))
+            continue
         except RateLimitError as error:
             delay = rate_limit_retry_delay(error) if attempt == 0 else None
             if delay is None:
                 raise HTTPException(503, "The free AI service is temporarily busy. Try again shortly.") from None
             time.sleep(delay)
             continue
-        except APIError:
-            raise HTTPException(503, "Comparison generation is temporarily unavailable. Please retry.") from None
-        except Exception:
-            raise HTTPException(503, "Comparison generation is temporarily unavailable. Please retry.") from None
+        except APIError as error:
+            status = getattr(error, "status_code", None)
+            body = getattr(error, "body", None)
+            if isinstance(body, dict) and (not isinstance(status, int) or status < 400):
+                detail = body.get("error", body)
+                status = detail.get("code") if isinstance(detail, dict) else status
+            logger.warning("%s provider failure (%s, status=%s)", label, type(error).__name__, status if type(status) is int else None)
+            # Router availability can change between calls, including HTTP 404
+            # when no free endpoint is available. Nothing has been emitted.
+            if attempt == 0 and type(status) is int and status in {404, 502, 503, 504}:
+                time.sleep(0.75)
+                continue
+            raise HTTPException(503, f"{label} generation is temporarily unavailable. Please retry.") from None
+        except Exception as error:
+            logger.warning("%s provider failure (%s)", label, type(error).__name__)
+            raise HTTPException(503, f"{label} generation is temporarily unavailable. Please retry.") from None
         try:
             if getattr(result, "response_metadata", {}).get("finish_reason") == "length":
+                if not attempt:
+                    model = model.bind(max_tokens=min(12000, max_tokens * 2))
                 raise ValueError("Truncated answer")
             content = result.content
             if isinstance(content, list):
                 content = "".join(block if isinstance(block, str) else block["text"] for block in content)
             if isinstance(content, dict):
-                return ComparisonDraft.model_validate(content)
+                return schema.model_validate(content)
             fenced = re.fullmatch(r"\s*```(?:json)?\s*\n?(.*?)\n?```\s*", content, re.I | re.S)
-            return ComparisonDraft.model_validate_json(fenced.group(1) if fenced else content)
+            return schema.model_validate_json(fenced.group(1) if fenced else content)
         except (ValidationError, ValueError, TypeError, KeyError):
             if attempt:
-                raise HTTPException(502, "Comparison returned an invalid response. Please retry.") from None
+                raise HTTPException(502, f"{label} returned an invalid response. Please retry.") from None
             prompt.append(HumanMessage(content="Regenerate concise JSON matching the required schema exactly. Use only the original evidence and IDs; empty claims for missing information."))
-    raise HTTPException(503, "Comparison generation is temporarily unavailable. Please retry.")
+    raise HTTPException(503, f"{label} generation is temporarily unavailable. Please retry.")
 
 
 def fresh_selection(db, actor_id, scope, ids):
@@ -103,16 +133,19 @@ def fresh_selection(db, actor_id, scope, ids):
     return actor, selection(db, actor, scope, ids)
 
 
-def read_run(db, actor, run_id):
+def read_run(db, actor, run_id, analysis_type="compare"):
     require_active_user(actor)
     actor_id = actor.id
     db.rollback()
-    run = db.query(AnalysisRun).filter_by(id=run_id, user_id=actor_id).one_or_none()
+    run = db.query(AnalysisRun).filter_by(id=run_id, user_id=actor_id, analysis_type=analysis_type).one_or_none()
     if run is None:
         raise HTTPException(404, "Comparison unavailable")
     # Result snapshots stay private even if every source paper is public.
     selection(db, actor, run.scope, run.request_json["document_ids"])
-    for source in db.query(AnalysisDocument).filter_by(analysis_id=run.id):
+    sources = db.query(AnalysisDocument).filter_by(analysis_id=run.id).all()
+    if sources:
+        selection(db, actor, run.scope, [source.source_document_id for source in sources])
+    for source in sources:
         doc = db.get(Document, source.document_id) if source.document_id else None
         if doc is None or doc.file_hash != source.document_hash:
             raise HTTPException(404, "Comparison sources are no longer available")
@@ -161,7 +194,7 @@ def compare(db, actor, request: ComparisonRequest):
     payload = request.model_dump(mode="json")
     existing = db.query(AnalysisRun).filter_by(user_id=actor_id, request_id=str(request.request_id)).one_or_none()
     if existing:
-        if existing.request_json != payload:
+        if existing.analysis_type != "compare" or existing.request_json != payload:
             raise HTTPException(409, "This request ID was already used with different options")
         return read_run(db, actor, existing.id)
     run = AnalysisRun(user_id=actor_id, request_id=str(request.request_id), scope=request.scope, request_json=payload)

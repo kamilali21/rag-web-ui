@@ -56,8 +56,8 @@ def pdf(name, public=False):
     result = io.BytesIO(); writer.write(result); return result.getvalue()
 
 
-def run():
-    if os.getenv("PHASE15_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
+def run(extra_acceptance=None, phase="phase15"):
+    if phase not in {"phase15", "phase16"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
         raise SystemExit("Explicit opt-in and local Windows origin required")
     db = SessionLocal()
     inspector = sa.inspect(db.bind)
@@ -71,7 +71,7 @@ def run():
     def vector_ids():
         return {collection.name: sorted(collection.get(include=[])["ids"]) for collection in vectors.list_collections()}
     before_objects, before_vectors = objects(), vector_ids()
-    name = "phase15_" + uuid.uuid4().hex[:12]
+    name = phase + "_" + uuid.uuid4().hex[:12]
     users, clients = [], []
     kb_id = public_id = public_task = None
     checks = []
@@ -120,6 +120,8 @@ def run():
         else: raise RuntimeError("Public processing timed out")
         checked(owner, "POST", f"/api/corpus/documents/{public_id}/publish")
         passed("Synthetic private/public PDF upload and processing/indexing")
+        if extra_acceptance:
+            extra_acceptance(owner, other, private_id, public_id, passed)
         request = {"request_id": str(uuid.uuid4()), "scope": "both", "document_ids": [private_id, public_id],
                    "criteria": ["objective", "methodology", "findings", "limitations"], "question": "Compare the two fabricated irrigation studies."}
         checked(other, "POST", "/api/insights/comparisons", expected=404, json=request)
@@ -150,7 +152,7 @@ def run():
         checked(owner, "POST", f"/api/corpus/documents/{public_id}/unpublish")
         checked(owner, "GET", f"/api/insights/comparisons/{run_id}", expected=404)
         passed("Revocation hides saved results and private source remains owner-only")
-        Path(".local/tmp/phase15-live-result.json").write_text(json.dumps({"duration_seconds": elapsed, "synthetic_result": response}, default=str))
+        Path(f".local/tmp/{phase}-live-result.json").write_text(json.dumps({"duration_seconds": elapsed, "synthetic_result": response}, default=str))
     finally:
         if public_id is not None:
             checked(clients[0], "DELETE", f"/api/corpus/documents/{public_id}")
@@ -170,7 +172,7 @@ def run():
         for client in clients: client.close()
         db.close()
         passed("Synthetic cleanup; original SQL rows, MinIO objects and Chroma vector IDs unchanged")
-    Path(".local/tmp/phase15-live-receipt.json").write_text(json.dumps({"passed": checks}))
+    Path(f".local/tmp/{phase}-live-receipt.json").write_text(json.dumps({"passed": checks}))
 
 
 if __name__ == "__main__":
