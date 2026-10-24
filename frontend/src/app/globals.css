@@ -422,6 +422,14 @@
 .analysis-sections h3 { font-weight: 600; margin-bottom: 8px; }
 .analysis-related-choice { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .analysis-result .comparison-compatibility ul { margin-top: 8px; padding-left: 18px; list-style: disc; }
+.interpretation-label { display: inline-block; padding: 4px 10px; border: 1px solid hsl(var(--border)); border-radius: 999px; color: hsl(var(--foreground)); background: hsl(var(--muted)); font-size: 12px; font-weight: 600; }
+.interpretation-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.interpretation-roles dt { font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+.interpretation-roles dd { font-size: 14px; overflow-wrap: anywhere; }
+.interpretation-roles li + li { margin-top: 6px; }
+.interpretation-factors { margin-top: 12px; border-top: 1px solid hsl(var(--border)); padding-top: 12px; }
+.interpretation-factors p { margin-top: 8px; }
+@media (max-width: 640px) { .interpretation-roles { grid-template-columns: minmax(0, 1fr); } }
 .language-think { @apply whitespace-pre-wrap m-0 relative border-l-2 bg-transparent rounded-none py-0 my-2 !important; color: #6b7166; }
 .hljs { @apply rounded-lg my-2; line-height: 26px; color: #404040; }
 

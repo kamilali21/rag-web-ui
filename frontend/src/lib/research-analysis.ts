@@ -8,12 +8,19 @@ export const validAnalysisRequest = (value: string | null): value is string => !
 
 export type AnalysisClaim = { text: string; citations: ComparisonEvidence[] };
 export type AnalysisSection = { key: string; title: string; claims: AnalysisClaim[] };
+export type EvidenceInterpretation = {
+  claim: string; label: string;
+  supporting: ComparisonEvidence[]; contradicting: ComparisonEvidence[]; qualifying: ComparisonEvidence[];
+  interpretation: AnalysisClaim;
+  context_factors: (AnalysisClaim & { key: string; title: string })[];
+};
 export type AnalysisRun = {
   id: number; status: ComparisonRun["status"]; error_message: string | null;
   result: null | {
     documents: (InsightsDocument & { role: "selected" | "related" })[];
     profiles: { document_id: number; fields: AnalysisSection[] }[];
     sections: AnalysisSection[]; question: string; notice: string;
+    focus?: "contradictions"; interpretations?: EvidenceInterpretation[];
     coverage: { candidate_count: number; related_count: number; selected_count: number;
       evidence_count: number; candidate_limit: number; related_limit: number; enabled: boolean };
   };

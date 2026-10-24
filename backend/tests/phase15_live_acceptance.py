@@ -37,14 +37,14 @@ def snapshot(connection, tables):
     return result
 
 
-def pdf(name, public=False):
+def pdf(name, public=False, contradiction=False):
     lines = ["Synthetic software acceptance study " + name,
         "Objective: compare drip irrigation and flood irrigation water use.",
         "Method: randomized trial of drip versus flood irrigation.",
-        "Study B: 60 cotton field plots in Punjab during 2024." if public else "Study A: 120 greenhouse vegetable plots in Punjab during 2025.",
-        "Finding: drip irrigation reduced water use by 18 percent." if public else "Finding: drip irrigation reduced water use by 23 percent.",
+        "Study C: 120 greenhouse vegetable plots in Punjab during 2025." if contradiction else "Study B: 60 cotton field plots in Punjab during 2024." if public else "Study A: 120 greenhouse vegetable plots in Punjab during 2025.",
+        "Finding: drip irrigation did not reduce water use; measured reduction was 0 percent." if contradiction else "Finding: drip irrigation reduced water use by 18 percent." if public else "Finding: drip irrigation reduced water use by 23 percent.",
         "Limitation: only one season was studied; yield was not measured.",
-        "Conclusion: drip reduced water use in the studied setting.",
+        "Conclusion: drip did not reduce water use in the studied setting." if contradiction else "Conclusion: drip reduced water use in the studied setting.",
         "Future work: multi-season field validation is required.",
         "These are fabricated test data, not real scientific findings."]
     writer = PdfWriter(); page = writer.add_blank_page(width=612, height=792)
@@ -57,7 +57,7 @@ def pdf(name, public=False):
 
 
 def run(extra_acceptance=None, phase="phase15"):
-    if phase not in {"phase15", "phase16"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
+    if phase not in {"phase15", "phase16", "phase17"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
         raise SystemExit("Explicit opt-in and local Windows origin required")
     db = SessionLocal()
     inspector = sa.inspect(db.bind)
@@ -101,7 +101,8 @@ def run(extra_acceptance=None, phase="phase15"):
         uploaded = checked(owner, "POST", f"/api/knowledge-base/{kb_id}/documents/upload", files={"files": (f"{name}-private.pdf", pdf(name), "application/pdf")}).json()
         tasks = checked(owner, "POST", f"/api/knowledge-base/{kb_id}/documents/process", json=uploaded).json()["tasks"]
         task_id = tasks[0]["task_id"]
-        deadline = time.monotonic() + 240
+        # Windows cold-start embedding imports can exceed four minutes.
+        deadline = time.monotonic() + 600
         while time.monotonic() < deadline:
             task = checked(owner, "GET", f"/api/knowledge-base/{kb_id}/documents/tasks", params={"task_ids": str(task_id)}).json()[str(task_id)]
             if task["status"] == "completed": break
@@ -159,7 +160,15 @@ def run(extra_acceptance=None, phase="phase15"):
         elif public_task is not None:
             checked(clients[0], "DELETE", f"/api/corpus/tasks/{public_task}")
         if kb_id is not None:
-            checked(clients[0], "DELETE", f"/api/knowledge-base/{kb_id}")
+            # Never override the lifecycle's active-processing protection.
+            deadline = time.monotonic() + 600
+            while True:
+                response = clients[0].delete(f"/api/knowledge-base/{kb_id}")
+                if response.status_code == 200:
+                    break
+                if response.status_code != 409 or time.monotonic() >= deadline:
+                    raise RuntimeError(f"Synthetic collection cleanup pending: HTTP {response.status_code}; KB {kb_id}")
+                time.sleep(3)
         db.rollback()
         db.query(AnalysisRun).filter(AnalysisRun.user_id.in_(users)).delete(synchronize_session=False)
         db.query(AuthSession).filter(AuthSession.user_id.in_(users)).delete(synchronize_session=False)

@@ -21,11 +21,14 @@ class AnalysisRequest(BaseModel):
     document_ids: list[Annotated[StrictInt, Field(gt=0)]] = Field(min_length=1, max_length=5)
     question: str = Field(default="", max_length=1000)
     include_related: StrictBool = True
+    focus: Literal["overview", "contradictions"] = "overview"
 
     @model_validator(mode="after")
     def distinct(self):
         if len(self.document_ids) != len(set(self.document_ids)):
             raise ValueError("Select distinct documents")
+        if self.focus == "contradictions" and len(self.document_ids) < 2:
+            raise ValueError("Evidence interpretation requires at least two selected papers")
         return self
 
 

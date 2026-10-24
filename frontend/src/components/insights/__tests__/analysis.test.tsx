@@ -120,3 +120,36 @@ test("saved processing result polls until complete without re-posting", async ()
   expect(api.get).toHaveBeenCalledTimes(2); expect(api.post).not.toHaveBeenCalled();
   unmount(); jest.useRealTimers();
 });
+
+test("evidence interpretation requires two papers and posts the chosen focus", async () => {
+  jest.mocked(api.post).mockResolvedValue(run);
+  const props = { scope: "both" as const, toggle: jest.fn(), onClose: jest.fn() };
+  const { rerender } = render(<AnalysisWorkflow {...props} selected={[paper]} />);
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "Analysis focus" }), "contradictions");
+  expect(screen.getByRole("button", { name: "Generate analysis" })).toBeDisabled();
+  rerender(<AnalysisWorkflow {...props} selected={[paper, { ...paper, id: 5, scope: "public" }]} />);
+  await userEvent.click(screen.getByRole("button", { name: "Generate analysis" }));
+  await screen.findByRole("region", { name: "Evidence-backed research analysis" });
+  expect(api.post).toHaveBeenCalledWith("/api/insights/analyses", expect.objectContaining({ focus: "contradictions", document_ids: [4, 5] }), expect.anything());
+});
+
+test("interpretation shows evidence roles, context, source links and escaped text", async () => {
+  const opposite = { ...evidence, evidence_id: "E2", document_id: 5, scope: "public" as const, file_name: "Other.pdf" };
+  const interpreted: AnalysisRun = { ...run, result: { ...run.result!, focus: "contradictions", sections: [], interpretations: [{
+    claim: "<script>unsafe()</script>", label: "Potential disagreement", supporting: [evidence], contradicting: [opposite], qualifying: [],
+    interpretation: { text: "Conditions may differ; no verdict on validity.", citations: [evidence, opposite] },
+    context_factors: [{ key: "environment", title: "Location / environment", text: "Field and greenhouse conditions differ.", citations: [evidence, opposite] }],
+  }] } };
+  const { rerender } = render(<AnalysisResult run={interpreted} />);
+  const region = within(screen.getByRole("region", { name: "Evidence interpretation" }));
+  expect(region.getByText("Supporting evidence")).toBeInTheDocument();
+  expect(region.getByText("Contradicting evidence")).toBeInTheDocument();
+  expect(region.getByText("Qualifying evidence")).toBeInTheDocument();
+  expect(region.getByText("Field and greenhouse conditions differ.", { exact: false })).toBeInTheDocument();
+  expect(region.getAllByRole("link", { name: "Open Other.pdf, page 2" })[0]).toHaveAttribute("href", "/api/corpus/documents/5/content?inline=true#page=2");
+  expect(document.querySelector("script")).toBeNull();
+  await userEvent.click(screen.getByText("Inspect evidence snapshots (2)"));
+  expect(screen.getAllByText("Water use reduced.").length).toBe(2);
+  rerender(<AnalysisResult run={{ ...interpreted, status: "insufficient_evidence", result: { ...interpreted.result!, interpretations: [] } }} />);
+  expect(screen.getByText(/This does not establish that the papers agree/)).toBeInTheDocument();
+});

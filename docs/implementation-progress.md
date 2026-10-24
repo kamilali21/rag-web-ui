@@ -16,7 +16,21 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 17 - Contradiction / Evidence Interpretation (not started)
+## Current Gate: Phase 18 - Candidate Research Gaps (not started)
+
+### Phase 17 closure - 25 October 2026
+
+- Evidence interpretation adds cited supporting, contradicting and qualifying
+  passages and documented context factors to the existing Insights result dialog.
+- 479 backend tests passed (43 opt-in skipped); 114 frontend tests, TypeScript
+  and production build passed. Existing build warnings are documented.
+- Synthetic interpretation (84.61s), comparison regression (39.58s), saved request
+  recovery, permissions/revocation and exact SQL/object/vector cleanup passed.
+- Deployed assets/API/health checked; browser visual automation unavailable.
+- Receipt: [Phase 17](phase17-evidence-interpretation.md). Tag:
+  `researchiq-phase17-evidence-20261025`. Schema remains `riq_007`.
+- Before Phase 18, the user requested private per-user OpenRouter/OpenAI settings
+  across existing AI features. This is an additional extension, not Phase 18.
 
 ### Analyse recovery correction - 24 October 2026
 

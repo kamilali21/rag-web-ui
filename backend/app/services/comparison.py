@@ -167,7 +167,8 @@ def read_run(db, actor, run_id, analysis_type="compare"):
     require_active_user(actor)
     actor_id = actor.id
     db.rollback()
-    run = db.query(AnalysisRun).filter_by(id=run_id, user_id=actor_id, analysis_type=analysis_type).one_or_none()
+    types = (analysis_type,) if isinstance(analysis_type, str) else analysis_type
+    run = db.query(AnalysisRun).filter_by(id=run_id, user_id=actor_id).filter(AnalysisRun.analysis_type.in_(types)).one_or_none()
     if run is None:
         raise HTTPException(404, "Comparison unavailable")
     # Result snapshots stay private even if every source paper is public.

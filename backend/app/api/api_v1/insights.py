@@ -74,14 +74,14 @@ def create_analysis(payload: AnalysisRequest, db: Database, actor: Actor):
 
 @router.get("/analyses/{run_id}")
 def read_analysis(run_id: int, db: Database, actor: Actor):
-    return comparison.read_run(db, actor, run_id, "analyze")
+    return comparison.read_run(db, actor, run_id, ("analyze", "contradictions"))
 
 
 @router.get("/analyses/requests/{request_id}")
 def recover_analysis(request_id: UUID, db: Database, actor: Actor):
     # Recover a disconnected POST without generating another result. Never expose
     # another user's request, even when its UUID is known on a shared browser.
-    run = db.query(AnalysisRun).filter_by(user_id=actor.id, request_id=str(request_id), analysis_type="analyze").one_or_none()
+    run = db.query(AnalysisRun).filter_by(user_id=actor.id, request_id=str(request_id)).filter(AnalysisRun.analysis_type.in_(("analyze", "contradictions"))).one_or_none()
     if run is None:
         raise HTTPException(404, "Analysis unavailable")
-    return comparison.read_run(db, actor, run.id, "analyze")
+    return comparison.read_run(db, actor, run.id, ("analyze", "contradictions"))

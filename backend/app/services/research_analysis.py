@@ -13,6 +13,8 @@ from sqlalchemy.exc import IntegrityError
 from app.models import AnalysisRun, AnalysisDocument, AnalysisEvidence, Document, DocumentChunk
 from app.models import AcademicDocumentMetadata as Metadata
 from app.schemas.research_analysis import AnalysisRequest, ProfilesDraft, SynthesisDraft, PROFILE_FIELDS, SECTIONS
+from app.schemas.evidence_interpretation import InterpretationDraft
+from app.services import evidence_interpretation
 from app.services import comparison
 from app.services.insights_catalog import rows_query
 from app.services.retrieval_scope import search_documents
@@ -162,12 +164,16 @@ def analyze(db, actor, request: AnalysisRequest):
     actor_id = actor.id
     actor, documents = comparison.fresh_selection(db, actor_id, request.scope, request.document_ids)
     payload = request.model_dump(mode="json")
+    # Preserve idempotent replay of Phase 16 requests written before focus existed.
+    if request.focus == "overview":
+        payload.pop("focus")
+    analysis_type = "contradictions" if request.focus == "contradictions" else "analyze"
     existing = db.query(AnalysisRun).filter_by(user_id=actor_id, request_id=str(request.request_id)).one_or_none()
     if existing:
-        if existing.analysis_type != "analyze" or existing.request_json != payload:
+        if existing.analysis_type != analysis_type or existing.request_json != payload:
             raise HTTPException(409, "This request ID was already used with different options")
-        return comparison.read_run(db, actor, existing.id, "analyze")
-    run = AnalysisRun(user_id=actor_id, request_id=str(request.request_id), analysis_type="analyze", scope=request.scope, request_json=payload)
+        return comparison.read_run(db, actor, existing.id, analysis_type)
+    run = AnalysisRun(user_id=actor_id, request_id=str(request.request_id), analysis_type=analysis_type, scope=request.scope, request_json=payload)
     db.add(run)
     try:
         db.flush()
@@ -200,14 +206,19 @@ def analyze(db, actor, request: AnalysisRequest):
         related_documents = all_documents[len(request.document_ids):]
         collect(db, actor, request.scope, related_documents, "Research findings methodology limitations. " + request.question, evidence, 4)
         actor, all_documents = revalidate(db, actor_id, request.scope, all_ids, run_id, evidence)
-        if evidence:
-            synthesis = comparison.generate_structured(SynthesisDraft, SYNTHESIS_PROMPT, {
+        synthesis_payload = {
                 "selected_document_ids": request.document_ids, "related_public_document_ids": related_ids,
                 "question": request.question, "profiles": [{"document_id": p.document_id, "fields": [f.model_dump() for f in p.fields]} for p in draft.profiles],
-                "evidence": model_evidence(evidence)}, 4500, "Research analysis")
+                "evidence": model_evidence(evidence)}
+        interpretations = []
+        if request.focus == "contradictions":
+            interpretation = comparison.generate_structured(InterpretationDraft, evidence_interpretation.PROMPT,
+                synthesis_payload, 6000, "Evidence interpretation") if len({e["document_id"] for e in evidence}) >= 2 else InterpretationDraft(relationships=[])
+            interpretations = evidence_interpretation.validate(interpretation, evidence)
+            sections = []
         else:
-            synthesis = SynthesisDraft(sections=[{"key": key, "claims": []} for key in SECTIONS])
-        sections = validate_synthesis(synthesis, evidence)
+            synthesis = comparison.generate_structured(SynthesisDraft, SYNTHESIS_PROMPT, synthesis_payload, 4500, "Research analysis") if evidence else SynthesisDraft(sections=[{"key": key, "claims": []} for key in SECTIONS])
+            sections = validate_synthesis(synthesis, evidence)
         actor, all_documents = revalidate(db, actor_id, request.scope, all_ids, run_id, evidence)
         for item in evidence:
             db.add(AnalysisEvidence(analysis_id=run_id, source_document_id=item["document_id"], **{
@@ -217,12 +228,15 @@ def analyze(db, actor, request: AnalysisRequest):
             "coverage": {**coverage, "selected_count": len(request.document_ids), "evidence_count": len(evidence),
                 "candidate_limit": MAX_CANDIDATES, "related_limit": MAX_RELATED},
             "notice": "Based only on retrieved passages from selected papers and any listed related public papers. Discovery is bounded, not an exhaustive literature review. Missing evidence is not proof of absence; patterns are not scientific confidence."}
+        if request.focus == "contradictions":
+            result.update(focus="contradictions", interpretations=interpretations)
+            result["notice"] += " Evidence interpretation identifies possible relationships and documented context differences, not which paper is right or scientifically valid. Proposed explanations are interpretations, not established causes."
         run = db.get(AnalysisRun, run_id)
         run.result_json = json.loads(json.dumps(result, default=lambda value: value.isoformat()))
-        run.status = "complete" if any(section["claims"] for section in sections) else "insufficient_evidence"
+        run.status = "complete" if interpretations or any(section["claims"] for section in sections) else "insufficient_evidence"
         run.completed_at = datetime.utcnow()
         db.commit()
-        return comparison.read_run(db, actor, run_id, "analyze")
+        return comparison.read_run(db, actor, run_id, analysis_type)
     except Exception as error:
         db.rollback()
         failed = db.get(AnalysisRun, run_id)

@@ -106,7 +106,7 @@ test("analysis allows one document and discloses bounded related discovery", asy
   expect(dialog.getByRole("button", { name: "Generate analysis" })).toBeEnabled();
   expect(dialog.getByRole("checkbox", { name: "Include up to 3 related public papers" })).toBeChecked();
   expect(dialog.getByText(/at most 20 metadata-matched public papers/)).toBeInTheDocument();
-  expect(dialog.queryByLabelText("Analysis focus")).not.toBeInTheDocument();
+  expect(dialog.getByLabelText("Analysis focus")).toHaveValue("overview");
   expect(api.post).not.toHaveBeenCalled();
 });
 
