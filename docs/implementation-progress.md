@@ -18,6 +18,17 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 
 ## Current Gate: Phase 17 - Contradiction / Evidence Interpretation (not started)
 
+### Analyse recovery correction - 24 October 2026
+
+- Corrected bounded profile-output handling and SDK malformed-completion retry;
+  added owner-checked request recovery and **Resume last analysis** in Insights.
+- 74 affected backend tests and 22 Insights tests passed; TypeScript and frontend
+  production build passed. Deployed frontend/backend and checked served assets.
+- Full synthetic fixture passed: Analyse 54.37s, Compare 25.36s, saved recovery,
+  permission/revocation checks and original SQL/object/vector snapshot equality.
+- Receipt: [Phase 16 correction](phase16-analyze.md). Recovery tag:
+  `researchiq-analyze-recovery-20261024`. No schema/model-setting change or push.
+
 ### Phase 16 closure - 23 October 2026
 
 - Added selected-paper research profiles, bounded related public discovery and

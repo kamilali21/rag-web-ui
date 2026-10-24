@@ -58,6 +58,9 @@ def check(owner, other, private_id, public_id, passed):
         assert "23" in json.dumps(data) and "18" in json.dumps(data)
         identity = result["id"]
         assert request(owner, "GET", f"/api/insights/analyses/{identity}").json() == result
+        recovery_path = f'/api/insights/analyses/requests/{body["request_id"]}'
+        assert request(owner, "GET", recovery_path).json() == result
+        request(other, "GET", recovery_path, 404)
         assert request(owner, "POST", "/api/insights/analyses", json=body).json() == result
         request(other, "GET", f"/api/insights/analyses/{identity}", 404)
         with SessionLocal() as db:
@@ -66,6 +69,7 @@ def check(owner, other, private_id, public_id, passed):
             assert db.query(AnalysisEvidence).filter_by(analysis_id=identity).count() >= 3
         request(owner, "POST", f"/api/corpus/documents/{related_id}/unpublish")
         request(owner, "GET", f"/api/insights/analyses/{identity}", 404)
+        request(owner, "GET", recovery_path, 404)
         passed(f"Analyze profiles, bounded related discovery, synthesis, citations, saved reopening and related-source revocation ({elapsed}s)")
         Path(".local/tmp/phase16-analysis-result.json").write_text(json.dumps({"duration_seconds": elapsed, "synthetic_result": result}, default=str))
     finally:

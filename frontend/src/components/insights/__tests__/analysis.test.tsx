@@ -1,9 +1,9 @@
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AnalysisWorkflow } from "../analysis-workflow";
 import { AnalysisResult } from "../analysis-result";
 import { Insights } from "../insights";
-import { AnalysisRun } from "@/lib/research-analysis";
+import { AnalysisRun, lastAnalysisKey } from "@/lib/research-analysis";
 import { InsightsDocument } from "@/lib/insights";
 import { api, ApiError } from "@/lib/api";
 jest.mock("@/lib/api", () => ({ ...jest.requireActual("@/lib/api"), api: { get: jest.fn(), post: jest.fn() } }));
@@ -15,7 +15,7 @@ const run: AnalysisRun = { id: 30, status: "complete", error_message: null, resu
   sections: [section, { key: "trends", title: "Research trends", claims: [] }], question: "Water use", notice: "Bounded evidence only.",
   coverage: { candidate_count: 0, related_count: 0, selected_count: 1, evidence_count: 1, candidate_limit: 20, related_limit: 3, enabled: false },
 } };
-beforeEach(() => { jest.clearAllMocks(); window.history.replaceState(null, "", "/dashboard/insights"); });
+beforeEach(() => { jest.clearAllMocks(); sessionStorage.clear(); window.history.replaceState(null, "", "/dashboard/insights"); });
 
 test("renders cited synthesis, missing sections, profiles and saved link without HTML execution", async () => {
   render(<AnalysisResult run={run} />);
@@ -80,4 +80,43 @@ test("pending and insufficient evidence states never claim success", () => {
   expect(screen.getByRole("status")).toHaveTextContent("still processing");
   rerender(<AnalysisResult run={{ ...run, status: "insufficient_evidence" }} />);
   expect(screen.getByRole("status")).toHaveTextContent("insufficient retrieved evidence");
+});
+
+test("closing a slow generation retains only its request ID for recovery", async () => {
+  jest.mocked(api.post).mockImplementation(() => new Promise(() => {}));
+  const started = jest.fn(), close = jest.fn();
+  const { unmount } = render(<AnalysisWorkflow selected={[paper]} scope="private" toggle={jest.fn()} onClose={close} onStarted={started} />);
+  await userEvent.click(screen.getByRole("button", { name: "Generate analysis" }));
+  const id = started.mock.calls[0][0];
+  expect(sessionStorage.getItem(lastAnalysisKey)).toBe(id);
+  expect(window.location.search).toContain(`analysisRequest=${id}`);
+  expect(screen.getByRole("status")).toHaveTextContent("Resume last analysis");
+  await userEvent.click(screen.getByRole("button", { name: "Close and resume later" }));
+  expect(close).toHaveBeenCalled();
+  unmount();
+});
+
+test("request recovery opens saved results without another generation", async () => {
+  const id = "12345678-1234-4234-8234-123456789abc";
+  sessionStorage.setItem(lastAnalysisKey, id);
+  window.history.replaceState(null, "", `/dashboard/insights?analysisRequest=${id}`);
+  jest.mocked(api.get).mockImplementation(async url => url.includes("/analyses/requests/") ? run : url.startsWith("/api/departments") ? [] : { items: [], has_more: false });
+  render(<Insights />);
+  expect(await screen.findByRole("region", { name: "Evidence-backed research analysis" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Close analysis" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(screen.getByRole("link", { name: "Resume last analysis" })).toHaveAttribute("href", `/dashboard/insights?analysisRequest=${id}`);
+  expect(api.post).not.toHaveBeenCalled();
+});
+
+test("saved processing result polls until complete without re-posting", async () => {
+  jest.useFakeTimers();
+  window.history.replaceState(null, "", "/dashboard/insights?analysis=30");
+  jest.mocked(api.get).mockResolvedValueOnce({ ...run, status: "processing", result: null }).mockResolvedValueOnce(run);
+  const { unmount } = render(<AnalysisWorkflow selected={[]} scope="public" toggle={jest.fn()} onClose={jest.fn()} />);
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("still processing"));
+  await act(async () => { jest.advanceTimersByTime(5000); });
+  expect(await screen.findByRole("region", { name: "Evidence-backed research analysis" })).toBeInTheDocument();
+  expect(api.get).toHaveBeenCalledTimes(2); expect(api.post).not.toHaveBeenCalled();
+  unmount(); jest.useRealTimers();
 });

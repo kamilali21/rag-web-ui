@@ -134,3 +134,41 @@ schema or restore an old database just to roll back the Analyse UI/service.
 Phase 16 is complete. The next gate is Phase 17 evidence interpretation. External
 free-model availability and latency remain variable; retries are bounded and
 failed/partial results are never represented as completed analyses.
+
+## Analyse recovery correction - 24 October 2026
+
+User testing exposed intermittent research-profile validation failures and lost
+results after closing the dialog. Server records showed that disconnected
+requests could subsequently complete; a 499 in nginx did not mean generation
+had failed. One completed run took several minutes. The exact original invalid
+output was not logged, so it cannot be attributed to a specific schema violation.
+
+- Increase the profile response budget from 1,800 to 4,000 tokens for one paper,
+  scaling to a bounded 8,000 for five papers. Explicitly request concise claims
+  and include the full schema bounds in the existing single correction attempt.
+  Log validation categories and stage duration without evidence or output text.
+- Preserve an opaque request UUID in tab session storage and the URL. Add
+  **Resume last analysis** and an owner-checked request lookup, reusing all saved
+  source-access checks. No private text, questions or results enter browser storage.
+- Reopened processing results poll every five seconds for up to five minutes;
+  manual status checking remains available. Recovery never starts another model
+  call. This is one-request recovery, not Phase 19's analysis-history browser.
+- Generation remains synchronous. The free provider can still be slow or
+  unavailable; server restarts do not restart interrupted generation. No queue,
+  schema change or paid-model fallback is introduced.
+- A fresh fixture exposed a provider HTTP-200/SDK-parser TypeError. Malformed
+  completion-envelope failures at the installed SDK boundary now share the
+  same one-retry allowance. Unrelated application TypeErrors are not retried.
+  The regression reproduces null choices through the installed adapter.
+- Verification: 74 affected backend tests; 22 Insights frontend tests; TypeScript
+  and production build passed. One overloaded-machine UI test timed out during
+  the build and passed when rerun afterward. Existing lint-configuration and
+  Tailwind warnings remain. Deployed image:
+  `sha256:7c232ebd3c8a50917c8e32b350086f8ac434cff51da8a2b8e93fc5a34e7414ce`.
+- Live Analyse passed in 54.37 seconds with request-UUID recovery, ownership,
+  citations, saved reopening and related-source revocation. Health, served
+  frontend assets and anonymous rejection passed. Browser inspection timed out;
+  no rendered-browser acceptance is claimed.
+- The same fixture's comparison regression passed in 25.36 seconds. Cleanup
+  confirmed original SQL rows, MinIO objects and Chroma vector IDs unchanged.
+  Recovery tag: `researchiq-analyze-recovery-20261024`.

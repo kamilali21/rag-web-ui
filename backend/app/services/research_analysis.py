@@ -30,12 +30,14 @@ Describe only what these retrieved passages support. Do not infer missing result
 PROFILE_PROMPT = INSTRUCTIONS + """Build exactly one profile per selected document, in input order.
 Return {"profiles":[{"document_id":123,"fields":[{"key":"objective","claims":[{"text":"A concise statement.","evidence_ids":["E1"]}]}]}]}.
 Each profile must have exactly these six fields: objective, methodology, dataset, findings, limitations, future_work.
-Use at most one short claim per field. Each claim must cite evidence from THAT document only.
+Use at most one short claim per field, at most 400 characters and 1-5 evidence IDs.
+Each claim must cite evidence from THAT document only. Do not repeat the excerpt verbatim.
 """
 SYNTHESIS_PROMPT = INSTRUCTIONS + """Synthesize the selected studies and the explicitly labelled related public evidence.
 Return {"sections":[{"key":"summary","claims":[{"text":"A concise supported statement.","evidence_ids":["E1"]}]}]}.
 Include exactly seven sections: summary, insights, common_findings, limitations, methodological_differences, trends, future_directions.
-Prefer one or two concise claims per section. Every claim needs direct evidence IDs, not profile IDs.
+Prefer one or two concise claims per section, each at most 400 characters with 1-5 evidence IDs.
+Every claim needs direct evidence IDs, not profile IDs.
 For common_findings, methodological_differences and trends, each claim must cite at least TWO DISTINCT documents.
 With only one evidence-bearing paper, leave those cross-study sections empty.
 Every trend claim must explicitly qualify its pattern as "within these retrieved studies"; never infer a chronology without dated evidence.
@@ -183,7 +185,7 @@ def analyze(db, actor, request: AnalysisRequest):
         actor, documents = revalidate(db, actor_id, request.scope, request.document_ids, run_id, evidence)
         if evidence:
             draft = comparison.generate_structured(ProfilesDraft, PROFILE_PROMPT, {
-                "document_ids": request.document_ids, "evidence": model_evidence(evidence)}, min(7000, 800 + 1000 * len(documents)), "Research profiles")
+                "document_ids": request.document_ids, "evidence": model_evidence(evidence)}, min(8000, 2800 + 1200 * len(documents)), "Research profiles")
         else:
             draft = ProfilesDraft(profiles=[{"document_id": identity, "fields": [{"key": key, "claims": []} for key in PROFILE_FIELDS]} for identity in request.document_ids])
         profiles = validate_profiles(draft, request.document_ids, evidence)

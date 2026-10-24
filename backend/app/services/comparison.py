@@ -61,6 +61,26 @@ def generate(request, evidence):
         min(10000, max(4000, 1800 + 160 * len(request.document_ids) * len(request.criteria))), "Comparison")
 
 
+def malformed_completion(error):
+    """Recognize malformed completion envelopes at the installed SDK boundary.
+
+    Some compatible endpoints return HTTP 200 with null choices. The SDK parser
+    throws before our schema validator runs. Do not retry unrelated application
+    TypeErrors or log the exception value (it can contain provider output).
+    """
+    if not isinstance(error, (TypeError, KeyError, ValueError, AttributeError)):
+        return False
+    frame = error.__traceback__
+    while frame:
+        module = frame.tb_frame.f_globals.get("__name__", "")
+        function = frame.tb_frame.f_code.co_name
+        if (module == "openai.lib._parsing._completions" and function == "parse_chat_completion") or (
+                module == "langchain_openai.chat_models.base" and function == "_create_chat_result"):
+            return True
+        frame = frame.tb_next
+    return False
+
+
 def generate_structured(schema, system, payload, max_tokens, label):
     """Shared bounded provider policy for comparison and staged research analysis."""
     model = LLMFactory.create(streaming=False).bind(max_tokens=max_tokens)
@@ -77,6 +97,7 @@ def generate_structured(schema, system, payload, max_tokens, label):
             model = model.bind(response_format={"type": "json_object"})
     prompt = [SystemMessage(content=system), HumanMessage(content=json.dumps(payload, ensure_ascii=False))]
     for attempt in range(2):
+        started = time.monotonic()
         try:
             result = model.invoke(prompt)
         except LengthFinishReasonError:
@@ -106,7 +127,13 @@ def generate_structured(schema, system, payload, max_tokens, label):
             raise HTTPException(503, f"{label} generation is temporarily unavailable. Please retry.") from None
         except Exception as error:
             logger.warning("%s provider failure (%s)", label, type(error).__name__)
+            if attempt == 0 and malformed_completion(error):
+                time.sleep(0.75)
+                continue
             raise HTTPException(503, f"{label} generation is temporarily unavailable. Please retry.") from None
+        logger.info("%s response received (attempt=%s, duration_ms=%s, finish_reason=%s)",
+            label, attempt + 1, round((time.monotonic() - started) * 1000),
+            getattr(result, "response_metadata", {}).get("finish_reason"))
         try:
             if getattr(result, "response_metadata", {}).get("finish_reason") == "length":
                 if not attempt:
@@ -119,10 +146,13 @@ def generate_structured(schema, system, payload, max_tokens, label):
                 return schema.model_validate(content)
             fenced = re.fullmatch(r"\s*```(?:json)?\s*\n?(.*?)\n?```\s*", content, re.I | re.S)
             return schema.model_validate_json(fenced.group(1) if fenced else content)
-        except (ValidationError, ValueError, TypeError, KeyError):
+        except (ValidationError, ValueError, TypeError, KeyError) as error:
+            # Log only error categories: validation inputs can contain private research.
+            codes = sorted({item["type"] for item in error.errors(include_input=False)}) if isinstance(error, ValidationError) else [type(error).__name__]
+            logger.warning("%s output rejected (attempt=%s, categories=%s)", label, attempt + 1, ",".join(codes))
             if attempt:
                 raise HTTPException(502, f"{label} returned an invalid response. Please retry.") from None
-            prompt.append(HumanMessage(content="Regenerate concise JSON matching the required schema exactly. Use only the original evidence and IDs; empty claims for missing information."))
+            prompt.append(HumanMessage(content="Regenerate concise JSON matching the required schema exactly. Use only the original evidence and IDs; empty claims for missing information. Each claim text must be at most 500 characters, with 1-5 evidence IDs. Use one short claim per field. Required schema and bounds: " + json.dumps(schema.model_json_schema())))
     raise HTTPException(503, f"{label} generation is temporarily unavailable. Please retry.")
 
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { BarChart3, BookOpen, ChevronLeft, ChevronRight, File, Filter, Loader2, RefreshCw, Search, Sparkles, X } from "lucide-react";
@@ -8,6 +8,7 @@ import { PublicDocumentDetails } from "@/components/knowledge-base/public-librar
 import { PrivateInsightsDetails } from "./document-details";
 import { ComparisonResult } from "./comparison-result";
 import { AnalysisWorkflow } from "./analysis-workflow";
+import { lastAnalysisKey, validAnalysisRequest } from "@/lib/research-analysis";
 import { comparisonCriteria, comparisonRequestId, ComparisonRun } from "@/lib/comparison";
 import { api, ApiError } from "@/lib/api";
 import { Department } from "@/lib/public-library";
@@ -39,6 +40,10 @@ export function Insights() {
   const [comparison, setComparison] = useState<ComparisonRun | null>(null);
   const [savedId, setSavedId] = useState<number | null>(null);
   const [reloadSaved, setReloadSaved] = useState(0);
+  const [lastAnalysis, setLastAnalysis] = useState<string | null>(null);
+  useEffect(() => {
+    try { const id = sessionStorage.getItem(lastAnalysisKey); if (validAnalysisRequest(id)) setLastAnalysis(id); } catch { /* Storage may be disabled. */ }
+  }, []);
   const requestKey = useRef<{ body: string; id: string } | null>(null);
   const [question, setQuestion] = useState("");
   const actionTrigger = useRef<HTMLButtonElement | null>(null);
@@ -46,7 +51,8 @@ export function Insights() {
   useEffect(() => () => validation.current?.abort(), []);
   useEffect(() => {
     const analysisId = Number(new URLSearchParams(window.location.search).get("analysis"));
-    if (Number.isSafeInteger(analysisId) && analysisId > 0) { setMode("analyse"); return; }
+    const analysisRequest = new URLSearchParams(window.location.search).get("analysisRequest");
+    if ((Number.isSafeInteger(analysisId) && analysisId > 0) || validAnalysisRequest(analysisRequest)) { setMode("analyse"); return; }
     const id = Number(new URLSearchParams(window.location.search).get("comparison"));
     if (!Number.isSafeInteger(id) || id <= 0) return;
     const controller = new AbortController(); validation.current = controller;
@@ -93,6 +99,7 @@ export function Insights() {
   const closeWorkflow = () => {
     validation.current?.abort(); setMode(null); setValidating(false); setSavedId(null);
     const url = new URL(window.location.href); url.searchParams.delete("comparison"); url.searchParams.delete("analysis");
+    url.searchParams.delete("analysisRequest");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   };
   const openWorkflow = (next: InsightsMode, trigger: HTMLButtonElement) => {
@@ -125,6 +132,7 @@ export function Insights() {
       </div>
     </div>
     <p className="insights-catalog-note">Explore ready papers. Compare two to five studies, or analyse selected research with cited profiles and related evidence.</p>
+    {lastAnalysis && <a className="insights-text-action" href={`/dashboard/insights?analysisRequest=${lastAnalysis}`}>Resume last analysis</a>}
     <form className="public-library-filters" onSubmit={event => { event.preventDefault(); setFilters({ ...draft }); setCursors([null]); }}>
       <div className="library-search">
         <button type="submit" className="icon-button" aria-label="Search documents"><Search size={23} strokeWidth={1.6} /></button>
@@ -168,7 +176,7 @@ export function Insights() {
     <Dialog open={mode !== null} onOpenChange={open => { if (!open) closeWorkflow(); }}><DialogContent className="insights-dialog" onCloseAutoFocus={event => { if (actionTrigger.current) { event.preventDefault(); actionTrigger.current.focus(); } }}>
       <DialogHeader><DialogTitle>{mode === "compare" ? "Compare documents" : "Analyse research"}</DialogTitle><DialogDescription>{mode === "compare" ? "Compare selected papers using cited passages. Results are saved privately and source access is checked again when reopened." : "Build research profiles and a bounded, cited synthesis. Results are saved privately and source access is checked again when reopened."}</DialogDescription></DialogHeader>
       {validationError && <p role="alert">{validationError}</p>}
-      {mode === "analyse" ? <AnalysisWorkflow selected={selected} scope={scope} toggle={toggle} onClose={closeWorkflow} /> : comparison ? <><ComparisonResult run={comparison} /><div className="insights-dialog-actions"><Button variant="outline" onClick={() => { setComparison(null); setSavedId(null); requestKey.current = null; closeWorkflow(); }}>Close comparison</Button>{comparison.status === "processing" && <Button asChild><a href={`/dashboard/insights?comparison=${comparison.id}`}>Reload saved comparison</a></Button>}</div></> : savedId ? <><p role="status">{validating ? "Loading saved comparison..." : "Saved comparison unavailable."}</p><Button disabled={validating} onClick={() => setReloadSaved(value => value + 1)}>Retry saved comparison</Button></> : <>
+      {mode === "analyse" ? <AnalysisWorkflow selected={selected} scope={scope} toggle={toggle} onClose={closeWorkflow} onStarted={setLastAnalysis} /> : comparison ? <><ComparisonResult run={comparison} /><div className="insights-dialog-actions"><Button variant="outline" onClick={() => { setComparison(null); setSavedId(null); requestKey.current = null; closeWorkflow(); }}>Close comparison</Button>{comparison.status === "processing" && <Button asChild><a href={`/dashboard/insights?comparison=${comparison.id}`}>Reload saved comparison</a></Button>}</div></> : savedId ? <><p role="status">{validating ? "Loading saved comparison..." : "Saved comparison unavailable."}</p><Button disabled={validating} onClick={() => setReloadSaved(value => value + 1)}>Retry saved comparison</Button></> : <>
         <div className="insights-picker" role="group" aria-label="Selected documents">{selected.map(row => <label key={row.id}><input type="checkbox" checked disabled={validating} onChange={() => toggle(row)} /><span>{row.title}<small>{row.scope} / {row.authors_text || "Author not recorded"}</small></span></label>)}</div>
         <fieldset className="insights-options"><legend>Compare by</legend>{dimensions.map(dimension => <label key={dimension}><input type="checkbox" disabled={validating} checked={chosenDimensions.includes(dimension)} onChange={() => setChosenDimensions(previous => previous.includes(dimension) ? previous.filter(item => item !== dimension) : [...previous, dimension])} />{comparisonCriteria[dimension]}</label>)}</fieldset>
         <label className="insights-field">Research question (optional)<textarea rows={2} maxLength={1000} disabled={validating} value={question} onChange={event => setQuestion(event.target.value)} /></label>

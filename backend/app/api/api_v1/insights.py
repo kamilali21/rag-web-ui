@@ -1,11 +1,12 @@
 """Authenticated catalog-backed Insights; analysis generation has separate phase gates."""
 from typing import Annotated, Literal
-from fastapi import APIRouter, Depends, Query
+from uuid import UUID
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 from sqlalchemy.orm import Session
 from app.core.security import get_current_user
 from app.db.session import get_db
-from app.models import User
+from app.models import User, AnalysisRun
 from app.services import insights_catalog
 from app.services import comparison
 from app.services import research_analysis
@@ -74,3 +75,13 @@ def create_analysis(payload: AnalysisRequest, db: Database, actor: Actor):
 @router.get("/analyses/{run_id}")
 def read_analysis(run_id: int, db: Database, actor: Actor):
     return comparison.read_run(db, actor, run_id, "analyze")
+
+
+@router.get("/analyses/requests/{request_id}")
+def recover_analysis(request_id: UUID, db: Database, actor: Actor):
+    # Recover a disconnected POST without generating another result. Never expose
+    # another user's request, even when its UUID is known on a shared browser.
+    run = db.query(AnalysisRun).filter_by(user_id=actor.id, request_id=str(request_id), analysis_type="analyze").one_or_none()
+    if run is None:
+        raise HTTPException(404, "Analysis unavailable")
+    return comparison.read_run(db, actor, run.id, "analyze")

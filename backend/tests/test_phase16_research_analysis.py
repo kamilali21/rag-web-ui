@@ -74,6 +74,48 @@ def test_profiles_related_discovery_synthesis_persistence(sources, provider, gen
     assert w.client.get(path, headers=w.headers(w.alice)).status_code == 404
 
 
+def test_recover_request_checks_owner_type_and_current_sources(sources, provider, generation):
+    w = sources; body = payload(w, include_related=False)
+    result = post(w, body).json()
+    path = f'/api/insights/analyses/requests/{body["request_id"]}'
+    assert w.client.get(path, headers=w.headers(w.alice)).json() == result
+    for actor in (w.bob, w.professor, w.superuser):
+        assert w.client.get(path, headers=w.headers(actor)).status_code == 404
+    assert w.client.get(path).status_code == 401
+    assert w.client.get('/api/insights/analyses/requests/not-a-uuid', headers=w.headers(w.alice)).status_code == 422
+    row = w.db.get(AnalysisRun, result['id']); row.status = 'processing'; row.result_json = None; w.db.commit()
+    assert w.client.get(path, headers=w.headers(w.alice)).json()['status'] == 'processing'
+    row.analysis_type = 'compare'; w.db.commit()
+    assert w.client.get(path, headers=w.headers(w.alice)).status_code == 404
+    row.analysis_type = 'analyze'; w.db.commit()
+    w.alice_kb.user_id = w.bob.id; w.db.commit()
+    assert w.client.get(path, headers=w.headers(w.alice)).status_code == 404
+    assert generation.call_count == 2  # Recovery never makes model calls.
+
+
+def test_profile_budget_and_correction_include_actual_schema_bounds(sources, provider, monkeypatch):
+    import json
+    model = MagicMock(); model.bind.return_value = model
+    calls = 0
+    def invoke(prompt):
+        nonlocal calls
+        calls += 1
+        data = json.loads(prompt[1].content)
+        schema = ProfilesDraft if 'document_ids' in data else SynthesisDraft
+        draft = model_draft(schema, '', data, 1, '')
+        if calls == 1:
+            draft.profiles[0].fields[0].claims[0].text = 'x' * 501
+        if calls == 2:
+            assert 'maxLength' in prompt[-1].content and '500' in prompt[-1].content
+        return SimpleNamespace(content=draft.model_dump_json(), response_metadata={})
+    model.invoke.side_effect = invoke
+    monkeypatch.setattr(comparison.LLMFactory, 'create', lambda **kw: model)
+    assert post(sources, payload(sources, include_related=False)).status_code == 200
+    assert calls == 3
+    budgets = [c.kwargs['max_tokens'] for c in model.bind.call_args_list if 'max_tokens' in c.kwargs]
+    assert budgets[0] == 4000
+
+
 @pytest.mark.parametrize("scope,include", [("private", True), ("both", False)])
 def test_private_or_disabled_discovery_never_expands(sources, provider, generation, scope, include):
     w = sources; related(w)
@@ -244,3 +286,39 @@ def test_sdk_truncation_uses_one_bounded_correction(monkeypatch, failures):
         assert failure.value.status_code == 502
     assert model.invoke.call_count == 2
     assert model.bind.call_args.kwargs["max_tokens"] == 12000
+
+
+@pytest.mark.parametrize('failures', [1, 2])
+def test_null_provider_choices_uses_shared_retry_limit(monkeypatch, failures):
+    from langchain_openai import ChatOpenAI
+    from fastapi import HTTPException
+    draft = ProfilesDraft(profiles=[{'document_id': 1, 'fields': [{'key': key, 'claims': []} for key in PROFILE_FIELDS]}])
+    model = MagicMock(); model.bind.return_value = model
+    calls = 0
+    def invoke(prompt):
+        nonlocal calls
+        calls += 1
+        if calls <= failures:
+            # Actual installed adapter reproduces the HTTP-200/null-choices error.
+            return ChatOpenAI._create_chat_result(None, {'choices': None})
+        return SimpleNamespace(content=draft.model_dump_json(), response_metadata={})
+    model.invoke.side_effect = invoke
+    monkeypatch.setattr(comparison.LLMFactory, 'create', lambda **kw: model)
+    monkeypatch.setattr(comparison.time, 'sleep', MagicMock())
+    if failures == 1:
+        assert comparison.generate_structured(ProfilesDraft, '', {}, 4000, 'Profiles') == draft
+    else:
+        with pytest.raises(HTTPException) as failure:
+            comparison.generate_structured(ProfilesDraft, '', {}, 4000, 'Profiles')
+        assert failure.value.status_code == 503
+    assert calls == 2
+
+
+def test_application_typeerror_is_not_retried(monkeypatch):
+    from fastapi import HTTPException
+    model = MagicMock(); model.bind.return_value = model
+    model.invoke.side_effect = TypeError('Synthetic application failure')
+    monkeypatch.setattr(comparison.LLMFactory, 'create', lambda **kw: model)
+    with pytest.raises(HTTPException):
+        comparison.generate_structured(ProfilesDraft, '', {}, 4000, 'Profiles')
+    assert model.invoke.call_count == 1
