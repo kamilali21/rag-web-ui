@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import { Department } from "@/lib/public-library";
 import { Button } from "@/components/ui/button";
 import SignOutButton from "@/components/layout/sign-out-button";
+import { AIProviderSettings } from "./ai-provider-settings";
 
 type Profile = { full_name: string; department_id: number; department_name: string | null; degree: string;
   research_area: string; ag_number: string | null; class_name: string | null; section: string | null; photo_url: string | null };
@@ -145,6 +146,7 @@ export function ResearcherProfile() {
         })}</div>
       </section>
     </>}
+    <AIProviderSettings />
     <footer className="researcher-profile-footer"><SignOutButton className="profile-signout-button" /></footer>
   </section>;
 }

@@ -19,7 +19,7 @@ class FixtureRetriever(BaseRetriever):
 
 
 def test_chat_retrieves_all_selected_collections_and_persists_the_stream():
-    from app.services import chat_service
+    from app.services import chat_service, ai_settings
 
     db = MagicMock()
     db.query.return_value.filter.return_value.all.side_effect = [
@@ -39,7 +39,7 @@ def test_chat_retrieves_all_selected_collections_and_persists_the_stream():
         )]
 
     # Added by ChatGPT: isolate this RAG contract; Phase 2 tests exercise real authorization separately.
-    with patch.object(chat_service, "require_chat_sources", return_value=[
+    with patch.object(ai_settings, "resolve", return_value=None), patch.object(chat_service, "require_chat_sources", return_value=[
         SimpleNamespace(id=11), SimpleNamespace(id=12)
     ]), patch.object(chat_service, "resolve_scope", return_value={11: [11], 12: [12]}), patch.object(
         chat_service, "ScopedRetriever", return_value=FixtureRetriever(documents=documents)
@@ -59,7 +59,7 @@ def test_chat_retrieves_all_selected_collections_and_persists_the_stream():
 
 
 def test_chat_failure_is_a_valid_json_stream_frame_without_internal_error_details():
-    from app.services import chat_service
+    from app.services import chat_service, ai_settings
 
     db = MagicMock()
     db.query.side_effect = RuntimeError('private provider token "secret"\ntrace')
@@ -69,7 +69,7 @@ def test_chat_failure_is_a_valid_json_stream_frame_without_internal_error_detail
             "Question", {"messages": [{"role": "user", "content": "Question"}]}, [11], 1, db, SimpleNamespace(id=3)
         )]
 
-    with patch.object(chat_service, "require_chat_sources", return_value=[SimpleNamespace(id=11)]), patch.object(
+    with patch.object(ai_settings, "resolve", return_value=None), patch.object(chat_service, "require_chat_sources", return_value=[SimpleNamespace(id=11)]), patch.object(
         chat_service.EmbeddingsFactory, "create"
     ):
         frames = asyncio.run(collect())

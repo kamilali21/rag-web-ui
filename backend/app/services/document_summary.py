@@ -24,6 +24,7 @@ from app.schemas.document_summary import (
 from app.services.authorization import require_active_user
 from app.services.chat_service import rate_limit_retry_delay
 from app.services.llm.llm_factory import LLMFactory
+from app.services.ai_settings import personal_generation, provider_kind, is_openrouter
 from app.services.retrieval_scope import resolve_scope, search_documents
 
 logger = logging.getLogger(__name__)
@@ -183,9 +184,9 @@ def _strict_summary_schema() -> dict:
 
 
 def _configured_model():
-    model = LLMFactory.create(streaming=False).bind(max_tokens=1200)
-    if settings.CHAT_PROVIDER.lower() == "openai":
-        openrouter = urlparse(settings.OPENAI_API_BASE).hostname == "openrouter.ai"
+    model = LLMFactory.create(streaming=False).bind(max_tokens=4000)
+    if provider_kind() == "openai":
+        openrouter = is_openrouter()
         if openrouter:
             model = model.bind(
                 response_format={
@@ -197,7 +198,7 @@ def _configured_model():
                     },
                 },
                 extra_body={
-                    "reasoning": {"enabled": False},
+                    "reasoning": {"effort": "low", "exclude": True},
                     "provider": {"require_parameters": True},
                 },
             )
@@ -225,7 +226,7 @@ def _generate_draft(evidence: list[dict]) -> SummaryDraft:
             delay = rate_limit_retry_delay(error) if attempt == 0 else None
             if delay is None:
                 logger.warning("Summary generation rate-limited after bounded retry")
-                raise HTTPException(status_code=503, detail="The free AI service is temporarily busy. Try again shortly.") from None
+                raise HTTPException(status_code=503, detail="The AI provider is temporarily busy. Try again shortly or check your quota in Profile.") from None
             logger.info("Retrying summary generation after provider throttling in %.2f seconds", delay)
             time.sleep(delay)
             continue
@@ -255,6 +256,7 @@ def _generate_draft(evidence: list[dict]) -> SummaryDraft:
     raise HTTPException(status_code=503, detail="Summary generation is temporarily unavailable. Try again shortly.")
 
 
+@personal_generation
 def summarize_document(db: Session, actor: User, request: DocumentSummaryRequest) -> DocumentSummaryResponse:
     """Return temporary claims based only on the one authorized, ready document."""
     require_active_user(actor)

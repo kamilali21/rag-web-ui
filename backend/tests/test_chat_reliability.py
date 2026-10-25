@@ -222,7 +222,7 @@ def test_persistent_rate_limit_returns_specific_error_without_third_attempt(sour
     monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: RunnableLambda(model))
     response = send(sources, "What does this paper report?")
     assert len(calls) == 2
-    assert "The free AI service is busy right now" in response.text
+    assert "The AI provider is busy right now" in response.text
     assert "d:" not in response.text and "__LLM_RESPONSE__" not in response.text
 
 
@@ -237,7 +237,7 @@ def test_retry_after_over_limit_does_not_retry_provider(sources, provider, monke
     monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: RunnableLambda(model))
     response = send(sources, "What does this paper report?")
     assert len(calls) == 1
-    assert "The free AI service is busy right now" in response.text
+    assert "The AI provider is busy right now" in response.text
 
 
 def test_rate_limit_after_first_answer_block_is_never_replayed(sources, provider, monkeypatch):
@@ -251,7 +251,7 @@ def test_rate_limit_after_first_answer_block_is_never_replayed(sources, provider
     monkeypatch.setattr(chat_service.LLMFactory, "create", lambda: RunnableGenerator(chunks))
     response = send(sources, "What does this paper report?")
     assert response.text.count("First supported claim.") == 1
-    assert "The free AI service is busy right now" in response.text
+    assert "The AI provider is busy right now" in response.text
     assert "d:" not in response.text
 
 

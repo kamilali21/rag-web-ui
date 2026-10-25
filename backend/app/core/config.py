@@ -6,6 +6,8 @@ from pydantic import Field
 
 
 class Settings(BaseSettings):
+    # Independent 32-byte URL-safe base64 key; never expose to the frontend.
+    AI_KEY_ENCRYPTION_KEY: str = ""
     PROJECT_NAME: str = "RAG Web UI"  # Project name
     VERSION: str = "0.1.0"  # Project version
     API_V1_STR: str = "/api"  # API version string

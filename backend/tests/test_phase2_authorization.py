@@ -48,7 +48,7 @@ def world():
         assert url.host == "127.0.0.1" and url.database == "researchiq_phase2_test", "Refusing a non-test database"
         engine = sa.create_engine(uri)
         with engine.begin() as connection:
-            assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "riq_007"
+            assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "riq_008"
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
     else:

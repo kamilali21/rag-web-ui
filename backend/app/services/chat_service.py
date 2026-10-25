@@ -16,6 +16,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain_core.messages import HumanMessage, AIMessage
 from app.core.config import settings
+from app.services.ai_settings import personal_generation, provider_kind, is_openrouter
 from app.models.chat import Message
 from app.models.knowledge import Document
 from langchain_core.retrievers import BaseRetriever
@@ -78,6 +79,7 @@ class ScopedRetriever(BaseRetriever):
         require_chat_sources(self.db, self.actor, self.chat_id, self.knowledge_base_ids)
         return [Evidence(page_content=row["content"], metadata=row["metadata"]) for row in rows]
 
+@personal_generation
 async def generate_response(
     query: str,
     messages: dict,
@@ -135,14 +137,12 @@ async def generate_response(
         # Initialize the language model
         # Reasoning and visible text share the provider budget. Keep answers concise
         # without truncating a reasoning model before it can emit the JSON block.
-        limit = {"num_predict": 4096} if settings.CHAT_PROVIDER.lower() == "ollama" else {"max_tokens": 4096}
+        limit = {"num_predict": 4096} if provider_kind() == "ollama" else {"max_tokens": 4096}
         llm = LLMFactory.create().bind(**limit)
-        openrouter = (settings.CHAT_PROVIDER.lower() == "openai"
-                      and urlparse(settings.OPENAI_API_BASE).hostname == "openrouter.ai")
+        openrouter = is_openrouter()
         if openrouter:
-            # The selected free model supports disabling reasoning. Reserve the
-            # output budget for the answer/rewrite instead of hidden deliberation.
-            llm = llm.bind(extra_body={"reasoning": {"enabled": False}})
+            # Routing may select mandatory-reasoning endpoints.
+            llm = llm.bind(extra_body={"reasoning": {"effort": "low", "exclude": True}})
         
         # Create contextualize question prompt
         contextualize_q_system_prompt = (
@@ -191,12 +191,12 @@ async def generate_response(
         document_prompt = PromptTemplate.from_template("\nEvidence {evidence_id}:\n{page_content}\n")
 
         answer_llm = llm
-        if openrouter:
+        if provider_kind() == "openai":
             # JSON mode is supported by the serving endpoint; its advertised
             # JSON Schema mode is not. Our validator still checks every field/ref.
             answer_llm = llm.bind(
                 response_format={"type": "json_object"},
-                extra_body={"reasoning": {"enabled": False}, "provider": {"require_parameters": True}})
+                **({"extra_body": {"reasoning": {"effort": "low", "exclude": True}, "provider": {"require_parameters": True}}} if openrouter else {}))
 
         # Create QA chain
         question_answer_chain = create_stuff_documents_chain(
@@ -314,7 +314,7 @@ async def generate_response(
         logger.error("Chat generation failed (stage=%s, %s, status=%s)", stage, type(e).__name__, getattr(e, "status_code", None))
         error_message = "Unable to generate a response. Please try again."
         if isinstance(e, RateLimitError):
-            error_message = "The free AI service is busy right now. Please try again shortly."
+            error_message = "The AI provider is busy right now. Please try again shortly or check your quota in Profile."
         elif isinstance(e, APIError):
             error_message = "The answer provider is temporarily unavailable. Please try again shortly."
         elif isinstance(e, HTTPException) and e.status_code == 409:

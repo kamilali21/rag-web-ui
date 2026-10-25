@@ -5,6 +5,7 @@ from langchain_openai import ChatOpenAI
 from langchain_deepseek import ChatDeepSeek
 from langchain_ollama import OllamaLLM
 from app.core.config import settings
+from app.services.ai_settings import current_config
 
 class LLMFactory:
     @staticmethod
@@ -16,6 +17,11 @@ class LLMFactory:
         """
         Create a LLM instance based on the provider
         """
+        personal = current_config()
+        if personal is not None:
+            return ChatOpenAI(temperature=temperature, streaming=streaming,
+                model=personal.model, openai_api_key=personal.api_key.get_secret_value(),
+                openai_api_base=personal.base_url, timeout=45, max_retries=0)
         # If no provider specified, use the one from settings
         provider = provider or settings.CHAT_PROVIDER
 

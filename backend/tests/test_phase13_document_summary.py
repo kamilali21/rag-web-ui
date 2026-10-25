@@ -79,7 +79,7 @@ def test_private_summary_uses_only_owned_ready_document_and_maps_page_citations(
     assert schema_format["json_schema"]["schema"]["required"] == [
         "objective", "methods_context", "key_findings", "limitations", "implications_conclusion"]
     assert "$ref" not in json.dumps(schema_format["json_schema"]["schema"])
-    assert model.bind.call_args_list[0].kwargs["max_tokens"] == 1200
+    assert model.bind.call_args_list[0].kwargs["max_tokens"] == 4000
 
 
 def test_extra_valid_findings_are_bounded_for_display_without_regeneration(sources, provider, monkeypatch):

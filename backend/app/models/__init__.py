@@ -8,8 +8,10 @@ from .authentication import EmailOTP, AuthSession, AuthRateLimit
 from .research import Department, AcademicDocumentMetadata, Bookmark
 from .researcher import ResearcherProfile, PublicationRequest, WithdrawalRequest
 from .analysis import AnalysisRun, AnalysisDocument, AnalysisEvidence
+from .ai_settings import UserAISettings
 
 __all__ = [
+    "UserAISettings",
     "User",
     "KnowledgeBase",
     "Document",

@@ -18,6 +18,21 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 
 ## Current Gate: Phase 18 - Candidate Research Gaps (not started)
 
+### Private AI provider settings extension - 25 October 2026
+
+- Profile now manages an encrypted, owner-only OpenRouter/OpenAI key and model
+  shared by Chat, Summary, Compare and Analyse. No browser storage or paid fallback.
+- Added `riq_008` after disposable MySQL verification and local SQL backup;
+  all values in 25 original tables were unchanged. Existing authentication and
+  embedding configuration remain unchanged.
+- 117 frontend tests, TypeScript and production build passed. Full backend run:
+  495 passed/44 skipped plus two baseline mock failures corrected in the final
+  affected suite (71 passed). Live provider success across the four workflows
+  was followed by a retry exercising temporary Analyse failure and verified cleanup.
+- Deployed assets/API checks passed; browser visual automation unavailable.
+  See [full receipt and limits](personal-ai-settings.md).
+- Tag: `researchiq-personal-ai-20261025`. Phase 18 has not been implemented yet.
+
 ### Phase 17 closure - 25 October 2026
 
 - Evidence interpretation adds cited supporting, contradicting and qualifying
@@ -848,7 +863,7 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 14. Insights on real catalog data: complete; see the 19 October receipt.
 15. Compare with evidence persistence: complete; see 22 October receipt.
 16. Bounded Analyze workflow: complete; see 23 October receipt.
-17. Contradiction interpretation.
+17. Contradiction interpretation: complete; see 25 October receipt.
 18. Corpus-qualified candidate gaps.
 19. Analysis history.
 20. Cross-feature security testing.

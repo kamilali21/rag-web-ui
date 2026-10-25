@@ -16,6 +16,7 @@ from app.schemas.research_analysis import AnalysisRequest, ProfilesDraft, Synthe
 from app.schemas.evidence_interpretation import InterpretationDraft
 from app.services import evidence_interpretation
 from app.services import comparison
+from app.services.ai_settings import personal_generation
 from app.services.insights_catalog import rows_query
 from app.services.retrieval_scope import search_documents
 
@@ -160,6 +161,7 @@ def revalidate(db, actor_id, scope, ids, run_id, evidence):
     return actor, documents
 
 
+@personal_generation
 def analyze(db, actor, request: AnalysisRequest):
     actor_id = actor.id
     actor, documents = comparison.fresh_selection(db, actor_id, request.scope, request.document_ids)

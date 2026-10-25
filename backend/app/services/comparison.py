@@ -22,6 +22,7 @@ from app.services.insights_catalog import selection
 from app.services.retrieval_scope import search_documents
 from app.services.chat_service import rate_limit_retry_delay
 from app.services.llm.llm_factory import LLMFactory
+from app.services.ai_settings import personal_generation, provider_kind, is_openrouter
 
 logger = logging.getLogger(__name__)
 UNAVAILABLE = "Not identified in retrieved evidence."
@@ -84,8 +85,8 @@ def malformed_completion(error):
 def generate_structured(schema, system, payload, max_tokens, label):
     """Shared bounded provider policy for comparison and staged research analysis."""
     model = LLMFactory.create(streaming=False).bind(max_tokens=max_tokens)
-    if settings.CHAT_PROVIDER.lower() == "openai":
-        if urlparse(settings.OPENAI_API_BASE).hostname == "openrouter.ai":
+    if provider_kind() == "openai":
+        if is_openrouter():
             model = model.bind(response_format={"type": "json_schema", "json_schema": {
                 "name": "researchiq_analysis", "strict": True, "schema": strict_schema(schema)}},
                 # The free router can select endpoints with mandatory reasoning.
@@ -109,7 +110,7 @@ def generate_structured(schema, system, payload, max_tokens, label):
         except RateLimitError as error:
             delay = rate_limit_retry_delay(error) if attempt == 0 else None
             if delay is None:
-                raise HTTPException(503, "The free AI service is temporarily busy. Try again shortly.") from None
+                raise HTTPException(503, "The AI provider is temporarily busy. Try again shortly or check your quota in Profile.") from None
             time.sleep(delay)
             continue
         except APIError as error:
@@ -218,6 +219,7 @@ def validated_result(request, documents, evidence, draft):
             "notice": "Based only on retrieved passages from the selected papers. Missing evidence is not proof of absence. Comparability is an AI interpretation, not scientific confidence."}
 
 
+@personal_generation
 def compare(db, actor, request: ComparisonRequest):
     require_active_user(actor)
     actor_id = actor.id

@@ -57,7 +57,7 @@ def pdf(name, public=False, contradiction=False):
 
 
 def run(extra_acceptance=None, phase="phase15"):
-    if phase not in {"phase15", "phase16", "phase17"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
+    if phase not in {"phase15", "phase16", "phase17", "personal_ai"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
         raise SystemExit("Explicit opt-in and local Windows origin required")
     db = SessionLocal()
     inspector = sa.inspect(db.bind)
@@ -175,7 +175,9 @@ def run(extra_acceptance=None, phase="phase15"):
         db.query(AdminAllowlist).filter(AdminAllowlist.email == f"{name}_owner@example.invalid").delete(synchronize_session=False)
         db.query(User).filter(User.id.in_(users)).delete(synchronize_session=False)
         db.commit()
-        assert snapshot(db, tables) == before, "Existing application data changed; inspect concurrent activity"
+        after = snapshot(db, tables)
+        changed = [name for name in tables if after[name] != before[name]]
+        assert not changed, f"Existing application data changed; inspect concurrent activity in {changed}"
         assert objects() == before_objects, "Object baseline changed"
         assert vector_ids() == before_vectors, "Vector baseline changed"
         for client in clients: client.close()
