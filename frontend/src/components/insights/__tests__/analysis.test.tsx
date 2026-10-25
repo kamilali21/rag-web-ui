@@ -17,6 +17,36 @@ const run: AnalysisRun = { id: 30, status: "complete", error_message: null, resu
 } };
 beforeEach(() => { jest.clearAllMocks(); sessionStorage.clear(); window.history.replaceState(null, "", "/dashboard/insights"); });
 
+test("candidate gaps use the existing workflow and exact selected IDs", async () => {
+  jest.mocked(api.post).mockResolvedValue(run);
+  render(<AnalysisWorkflow selected={[paper]} scope="private" toggle={jest.fn()} onClose={jest.fn()} />);
+  await userEvent.selectOptions(screen.getByLabelText("Analysis focus"), "candidate_gaps");
+  expect(screen.getByText(/not proof of a gap in global research/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Generate analysis" }));
+  await screen.findByRole("region", { name: "Evidence-backed research analysis" });
+  expect(api.post).toHaveBeenCalledWith("/api/insights/analyses", expect.objectContaining({ focus: "candidate_gaps", document_ids: [4], include_related: false }), expect.anything());
+});
+
+test("gap results show qualification, source quotes and citations as text", async () => {
+  const gapRun: AnalysisRun = { ...run, result: { ...run.result!, focus: "candidate_gaps", sections: [], candidate_gaps: [{
+    category: "limited_field_validation", title: "Limited Field Validation", topic: "Multi-season validation", qualification: "Candidate research gap within the indexed corpus.",
+    evidence_pattern: { text: "Only one season is documented.", citations: [evidence] },
+    evidence_quotes: [{ quote: "<script>untrusted source</script>", citation: evidence }], timeframe: null,
+  }] } };
+  render(<AnalysisResult run={gapRun} />);
+  expect(screen.getByRole("region", { name: "Candidate research gaps" })).toBeVisible();
+  expect(screen.getByText("Candidate research gap within the indexed corpus.")).toBeVisible();
+  await userEvent.click(screen.getByText("Supporting source quotations (1)"));
+  expect(screen.getByText("<script>untrusted source</script>")).toBeVisible();
+  expect(document.querySelector("script")).toBeNull();
+  expect(screen.getAllByRole("link", { name: "Open Study.pdf, page 2" })[0]).toHaveAttribute("href", "/api/knowledge-base/8/documents/4/content?inline=true#page=2");
+});
+
+test("empty gap result does not claim gaps do not exist", () => {
+  render(<AnalysisResult run={{ ...run, status: "insufficient_evidence", result: { ...run.result!, focus: "candidate_gaps", candidate_gaps: [], sections: [] } }} />);
+  expect(screen.getByText(/does not establish that no research gaps exist/)).toBeVisible();
+});
+
 test("renders cited synthesis, missing sections, profiles and saved link without HTML execution", async () => {
   render(<AnalysisResult run={run} />);
   expect(screen.getByRole("region", { name: "Evidence-backed research analysis" })).toBeInTheDocument();

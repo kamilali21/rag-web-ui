@@ -14,7 +14,9 @@ from app.models import AnalysisRun, AnalysisDocument, AnalysisEvidence, Document
 from app.models import AcademicDocumentMetadata as Metadata
 from app.schemas.research_analysis import AnalysisRequest, ProfilesDraft, SynthesisDraft, PROFILE_FIELDS, SECTIONS
 from app.schemas.evidence_interpretation import InterpretationDraft
+from app.schemas.candidate_gaps import CandidateGapsDraft
 from app.services import evidence_interpretation
+from app.services import candidate_gaps
 from app.services import comparison
 from app.services.ai_settings import personal_generation
 from app.services.insights_catalog import rows_query
@@ -169,7 +171,7 @@ def analyze(db, actor, request: AnalysisRequest):
     # Preserve idempotent replay of Phase 16 requests written before focus existed.
     if request.focus == "overview":
         payload.pop("focus")
-    analysis_type = "contradictions" if request.focus == "contradictions" else "analyze"
+    analysis_type = request.focus if request.focus != "overview" else "analyze"
     existing = db.query(AnalysisRun).filter_by(user_id=actor_id, request_id=str(request.request_id)).one_or_none()
     if existing:
         if existing.analysis_type != analysis_type or existing.request_json != payload:
@@ -212,8 +214,15 @@ def analyze(db, actor, request: AnalysisRequest):
                 "selected_document_ids": request.document_ids, "related_public_document_ids": related_ids,
                 "question": request.question, "profiles": [{"document_id": p.document_id, "fields": [f.model_dump() for f in p.fields]} for p in draft.profiles],
                 "evidence": model_evidence(evidence)}
-        interpretations = []
-        if request.focus == "contradictions":
+        interpretations, gaps = [], []
+        if request.focus == "candidate_gaps":
+            as_of_year = datetime.utcnow().year
+            gap_payload = {**synthesis_payload, 'as_of_year': as_of_year, 'recent_window_start': as_of_year - 4,
+                'publication_years': {doc['id']: doc.get('publication_year') for doc in all_documents}}
+            gap_draft = comparison.generate_structured(CandidateGapsDraft, candidate_gaps.PROMPT,
+                gap_payload, 6000, "Candidate research gaps") if evidence else CandidateGapsDraft(candidates=[])
+            sections = []
+        elif request.focus == "contradictions":
             interpretation = comparison.generate_structured(InterpretationDraft, evidence_interpretation.PROMPT,
                 synthesis_payload, 6000, "Evidence interpretation") if len({e["document_id"] for e in evidence}) >= 2 else InterpretationDraft(relationships=[])
             interpretations = evidence_interpretation.validate(interpretation, evidence)
@@ -222,6 +231,10 @@ def analyze(db, actor, request: AnalysisRequest):
             synthesis = comparison.generate_structured(SynthesisDraft, SYNTHESIS_PROMPT, synthesis_payload, 4500, "Research analysis") if evidence else SynthesisDraft(sections=[{"key": key, "claims": []} for key in SECTIONS])
             sections = validate_synthesis(synthesis, evidence)
         actor, all_documents = revalidate(db, actor_id, request.scope, all_ids, run_id, evidence)
+        if request.focus == "candidate_gaps":
+            # Use freshly revalidated metadata, including publication dates that
+            # may have changed while the provider was generating.
+            gaps = candidate_gaps.validate(gap_draft, evidence, request.document_ids, all_documents, as_of_year)
         for item in evidence:
             db.add(AnalysisEvidence(analysis_id=run_id, source_document_id=item["document_id"], **{
                 key: item[key] for key in ("evidence_id", "document_id", "chunk_id", "page", "excerpt", "retrieval_rank", "retrieval_score", "evidence_hash")}))
@@ -233,9 +246,12 @@ def analyze(db, actor, request: AnalysisRequest):
         if request.focus == "contradictions":
             result.update(focus="contradictions", interpretations=interpretations)
             result["notice"] += " Evidence interpretation identifies possible relationships and documented context differences, not which paper is right or scientifically valid. Proposed explanations are interpretations, not established causes."
+        elif request.focus == "candidate_gaps":
+            result.update(focus="candidate_gaps", candidate_gaps=gaps)
+            result['notice'] += ' ' + candidate_gaps.NOTICE
         run = db.get(AnalysisRun, run_id)
         run.result_json = json.loads(json.dumps(result, default=lambda value: value.isoformat()))
-        run.status = "complete" if interpretations or any(section["claims"] for section in sections) else "insufficient_evidence"
+        run.status = "complete" if interpretations or gaps or any(section["claims"] for section in sections) else "insufficient_evidence"
         run.completed_at = datetime.utcnow()
         db.commit()
         return comparison.read_run(db, actor, run_id, analysis_type)

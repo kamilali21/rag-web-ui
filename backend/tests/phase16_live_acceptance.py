@@ -15,8 +15,8 @@ from tests.phase15_live_acceptance import run, pdf
 
 def check(owner, other, private_id, public_id, passed, focus="overview"):
     department = related_id = task_id = None
-    phase = "phase17" if focus == "contradictions" else "phase16"
-    code = ("T17" if focus == "contradictions" else "T16") + uuid4().hex[:8].upper()
+    phase = {"contradictions":"phase17", "candidate_gaps":"phase18"}.get(focus,"phase16")
+    code = "T" + phase[-2:] + uuid4().hex[:8].upper()
     def request(client, method, path, expected=200, **kwargs):
         response = client.request(method, path, **kwargs)
         if response.status_code != expected:
@@ -40,11 +40,13 @@ def check(owner, other, private_id, public_id, passed, focus="overview"):
                 "question": "What do the synthetic irrigation studies show, and what are their limits?", "include_related": True}
         if focus == "contradictions":
             body.update(focus=focus, question="Interpret evidence about whether drip irrigation reduces water use. Compare the 23 percent and 0 percent greenhouse findings; consider the field study's context. Do not infer which study is valid.")
+        elif focus == "candidate_gaps":
+            body.update(focus=focus, question="Identify a candidate gap within these retrieved studies concerning their stated single-season limitation and requested multi-season validation. Quote the source passages exactly; do not assert global novelty.")
         request(other, "POST", "/api/insights/analyses", 404, json=body)
         started = time.monotonic()
         disconnected = False
         try:
-            result = request(owner, "POST", "/api/insights/analyses", json=body, timeout=5 if focus == "contradictions" else 180).json()
+            result = request(owner, "POST", "/api/insights/analyses", json=body, timeout=5 if focus != "overview" else 180).json()
         except httpx.ReadTimeout:
             disconnected = True
             deadline = time.monotonic() + 300
@@ -58,10 +60,10 @@ def check(owner, other, private_id, public_id, passed, focus="overview"):
                 time.sleep(3)
             else: raise RuntimeError('Saved analysis did not finish within the acceptance window')
         elapsed = round(time.monotonic() - started, 2)
-        assert result["status"] == "complete", result["status"]
+        assert result["status"] == "complete", (result["status"], result.get("error_message"))
         data = result["result"]
         assert len(data["profiles"]) == 2
-        assert len(data["sections"]) == (0 if focus == "contradictions" else 7)
+        assert len(data["sections"]) == (7 if focus == "overview" else 0)
         assert data["coverage"]["candidate_count"] == 1 and data["coverage"]["related_count"] == 1
         assert {d["id"] for d in data["documents"]} == {private_id, public_id, related_id}
         assert next(d for d in data["documents"] if d["id"] == related_id)["role"] == "related"
@@ -76,6 +78,14 @@ def check(owner, other, private_id, public_id, passed, focus="overview"):
             assert any({private_id, related_id}.issubset({c['document_id'] for c in item['supporting'] + item['contradicting']}) and item['contradicting'] for item in relationships)
             claims = [item['interpretation'] for item in relationships] + [factor for item in relationships for factor in item['context_factors']]
             assert all(len({c['document_id'] for c in item['interpretation']['citations']}) >= 2 for item in relationships)
+        elif focus == "candidate_gaps":
+            gaps = data['candidate_gaps']
+            assert gaps and data['focus'] == focus
+            claims = [item['evidence_pattern'] for item in gaps]
+            for item in gaps:
+                assert 'within the indexed corpus' in item['qualification']
+                for anchor in item['evidence_quotes']:
+                    assert ' '.join(anchor['quote'].split()) in ' '.join(anchor['citation']['excerpt'].split())
         else:
             claims = [c for section in data["sections"] for c in section["claims"]]
             assert len(claims) >= 3
@@ -90,7 +100,7 @@ def check(owner, other, private_id, public_id, passed, focus="overview"):
         assert request(owner, "POST", "/api/insights/analyses", json=body).json() == result
         request(other, "GET", f"/api/insights/analyses/{identity}", 404)
         with SessionLocal() as db:
-            assert db.get(AnalysisRun, identity).analysis_type == ("contradictions" if focus == "contradictions" else "analyze")
+            assert db.get(AnalysisRun, identity).analysis_type == ("analyze" if focus == "overview" else focus)
             assert db.query(AnalysisDocument).filter_by(analysis_id=identity, role="related").count() == 1
             assert db.query(AnalysisEvidence).filter_by(analysis_id=identity).count() >= 3
         request(owner, "POST", f"/api/corpus/documents/{related_id}/unpublish")

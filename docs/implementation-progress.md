@@ -16,7 +16,27 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 18 - Candidate Research Gaps (not started)
+## Current Gate: Phase 19 - Analysis History (not started)
+
+### Phase 18 closure - 25 October 2026
+
+- Added corpus-qualified candidate research gaps to the existing Insights Analyse
+  workflow: eight possible categories, cited evidence patterns, verified verbatim
+  source quotations and conservative recorded-date rules for recency categories.
+- Existing ownership, publication/readiness checks, personal provider selection,
+  saved results, source revocation and bounded retrieval remain in force. No
+  migration; schema remains `riq_008`.
+- Affected backend regression: 143 passed; final candidate-gap suite: 30 passed.
+  All 120 frontend tests, TypeScript checking and the production build passed.
+- Synthetic live candidate gaps (38.64s), saved recovery after client disconnect,
+  related-source revocation, comparison regression (34.39s) and exact original
+  SQL/MinIO/vector cleanup equality passed. An earlier generation failed; a
+  retry passed without loosening evidence validation. One premature post-restart
+  attempt received 502; readiness was confirmed before the successful run.
+- Deployed locally; health, focus schema, served UI assets and anonymous 401
+  checks passed. Browser visual automation remains unavailable.
+- Receipt: [Phase 18](phase18-candidate-gaps.md). Annotated checkpoint:
+  `researchiq-phase18-candidate-gaps-20261025`. Phase 19 has not started; no push.
 
 ### Private AI provider settings extension - 25 October 2026
 
@@ -31,7 +51,7 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
   was followed by a retry exercising temporary Analyse failure and verified cleanup.
 - Deployed assets/API checks passed; browser visual automation unavailable.
   See [full receipt and limits](personal-ai-settings.md).
-- Tag: `researchiq-personal-ai-20261025`. Phase 18 has not been implemented yet.
+- Tag: `researchiq-personal-ai-20261025`. Phase 18 subsequently completed above.
 
 ### Phase 17 closure - 25 October 2026
 
@@ -864,7 +884,7 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 15. Compare with evidence persistence: complete; see 22 October receipt.
 16. Bounded Analyze workflow: complete; see 23 October receipt.
 17. Contradiction interpretation: complete; see 25 October receipt.
-18. Corpus-qualified candidate gaps.
+18. Corpus-qualified candidate gaps: complete; see 25 October receipt.
 19. Analysis history.
 20. Cross-feature security testing.
 21. RAG evaluation.

@@ -11,7 +11,7 @@ export function AnalysisWorkflow({ selected, scope, toggle, onClose, onStarted }
   selected: InsightsDocument[]; scope: InsightsScope; toggle: (document: InsightsDocument) => void; onClose: () => void; onStarted?: (requestId: string) => void;
 }) {
   const [question, setQuestion] = useState("");
-  const [focus, setFocus] = useState<"overview" | "contradictions">("overview");
+  const [focus, setFocus] = useState<"overview" | "contradictions" | "candidate_gaps">("overview");
   const [includeRelated, setIncludeRelated] = useState(scope !== "private");
   const [run, setRun] = useState<AnalysisRun | null>(null);
   const [savedPath, setSavedPath] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export function AnalysisWorkflow({ selected, scope, toggle, onClose, onStarted }
     pending.current?.abort(); const controller = new AbortController(); pending.current = controller;
     setBusy(true); setError("");
     const body = { scope, document_ids: selected.map(doc => doc.id), question, include_related: scope !== "private" && includeRelated,
-      ...(focus === "contradictions" ? { focus } : {}) };
+      ...(focus !== "overview" ? { focus } : {}) };
     if (requestKey.current?.body !== JSON.stringify(body)) requestKey.current = { body: JSON.stringify(body), id: comparisonRequestId() };
     const requestId = requestKey.current.id;
     try { sessionStorage.setItem(lastAnalysisKey, requestId); } catch { /* Storage may be disabled. */ }
@@ -76,12 +76,13 @@ export function AnalysisWorkflow({ selected, scope, toggle, onClose, onStarted }
       : savedPath ? <><p role="status">{busy ? "Loading saved analysis..." : "Saved analysis unavailable."}</p><Button disabled={busy} onClick={() => setReload(value => value + 1)}>Retry saved analysis</Button></>
       : <>
         <div className="insights-picker" role="group" aria-label="Selected documents">{selected.map(doc => <label key={doc.id}><input type="checkbox" checked disabled={busy} onChange={() => toggle(doc)} /><span>{doc.title}<small>{doc.scope} / {doc.authors_text || "Author not recorded"}</small></span></label>)}</div>
-        <label className="insights-field">Analysis focus<select className="public-input" disabled={busy} value={focus} onChange={event => setFocus(event.target.value as typeof focus)}><option value="overview">Research overview</option><option value="contradictions">Evidence interpretation</option></select></label>
+        <label className="insights-field">Analysis focus<select className="public-input" disabled={busy} value={focus} onChange={event => setFocus(event.target.value as typeof focus)}><option value="overview">Research overview</option><option value="contradictions">Evidence interpretation</option><option value="candidate_gaps">Candidate research gaps</option></select></label>
         {focus === "contradictions" && <p className="insights-workflow-note">Select at least two papers. Identify supporting, contradicting and qualifying evidence, with cited context differences. This does not decide which study is right.</p>}
+        {focus === "candidate_gaps" && <p className="insights-workflow-note">Identify candidate gaps within the indexed corpus using cited evidence patterns and verified source quotations. This is a bounded review, not proof of a gap in global research.</p>}
         <label className="insights-field">Research question (optional)<textarea rows={2} maxLength={1000} disabled={busy} value={question} onChange={event => setQuestion(event.target.value)} /></label>
         <label className="analysis-related-choice"><input type="checkbox" checked={scope !== "private" && includeRelated} disabled={busy || scope === "private"} onChange={event => setIncludeRelated(event.target.checked)} /> Include up to 3 related public papers</label>
         <p className="insights-workflow-note">{scope === "private" ? "Private scope uses only your selected papers. Choose Both to include related public evidence." : "Related discovery narrows to at most 20 metadata-matched public papers before semantic ranking."} Select 1–5 papers. Missing information is marked explicitly.</p>
-        {busy && <p role="status">Building profiles and synthesizing cited findings ({elapsed}s). The free model can take a few minutes. You can close this dialog and use Resume last analysis without generating again.</p>}
+        {busy && <p role="status">Building profiles and synthesizing cited findings ({elapsed}s). The selected model can take a few minutes. You can close this dialog and use Resume last analysis without generating again.</p>}
         {error && <Button variant="outline" onClick={() => setReload(value => value + 1)}>Check saved result</Button>}
         <div className="insights-dialog-actions"><Button variant="outline" onClick={onClose}>{busy ? "Close and resume later" : "Cancel"}</Button><Button disabled={busy || selected.length < (focus === "contradictions" ? 2 : 1)} onClick={() => void generate()}>{busy ? "Analysing papers..." : "Generate analysis"}</Button></div>
       </>}

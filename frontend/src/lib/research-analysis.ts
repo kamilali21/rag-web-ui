@@ -8,6 +8,12 @@ export const validAnalysisRequest = (value: string | null): value is string => !
 
 export type AnalysisClaim = { text: string; citations: ComparisonEvidence[] };
 export type AnalysisSection = { key: string; title: string; claims: AnalysisClaim[] };
+export type CandidateGap = {
+  category: string; title: string; topic: string; qualification: string;
+  evidence_pattern: AnalysisClaim;
+  evidence_quotes: { quote: string; citation: ComparisonEvidence }[];
+  timeframe: null | { start_year: number; end_year: number; recent_papers: number; dated_papers: number };
+};
 export type EvidenceInterpretation = {
   claim: string; label: string;
   supporting: ComparisonEvidence[]; contradicting: ComparisonEvidence[]; qualifying: ComparisonEvidence[];
@@ -20,7 +26,7 @@ export type AnalysisRun = {
     documents: (InsightsDocument & { role: "selected" | "related" })[];
     profiles: { document_id: number; fields: AnalysisSection[] }[];
     sections: AnalysisSection[]; question: string; notice: string;
-    focus?: "contradictions"; interpretations?: EvidenceInterpretation[];
+    focus?: "contradictions" | "candidate_gaps"; interpretations?: EvidenceInterpretation[]; candidate_gaps?: CandidateGap[];
     coverage: { candidate_count: number; related_count: number; selected_count: number;
       evidence_count: number; candidate_limit: number; related_limit: number; enabled: boolean };
   };

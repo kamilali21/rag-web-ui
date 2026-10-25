@@ -57,7 +57,7 @@ def pdf(name, public=False, contradiction=False):
 
 
 def run(extra_acceptance=None, phase="phase15"):
-    if phase not in {"phase15", "phase16", "phase17", "personal_ai"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
+    if phase not in {"phase15", "phase16", "phase17", "phase18", "personal_ai"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
         raise SystemExit("Explicit opt-in and local Windows origin required")
     db = SessionLocal()
     inspector = sa.inspect(db.bind)

@@ -21,7 +21,7 @@ class AnalysisRequest(BaseModel):
     document_ids: list[Annotated[StrictInt, Field(gt=0)]] = Field(min_length=1, max_length=5)
     question: str = Field(default="", max_length=1000)
     include_related: StrictBool = True
-    focus: Literal["overview", "contradictions"] = "overview"
+    focus: Literal["overview", "contradictions", "candidate_gaps"] = "overview"
 
     @model_validator(mode="after")
     def distinct(self):
