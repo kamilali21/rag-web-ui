@@ -1,7 +1,7 @@
 """Authenticated catalog-backed Insights; analysis generation has separate phase gates."""
 from typing import Annotated, Literal
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 from sqlalchemy.orm import Session
 from app.core.security import get_current_user
@@ -10,6 +10,7 @@ from app.models import User, AnalysisRun
 from app.services import insights_catalog
 from app.services import comparison
 from app.services import research_analysis
+from app.services import analysis_history
 from app.schemas.research_analysis import AnalysisRequest
 from app.schemas.comparison import ComparisonRequest
 
@@ -17,6 +18,23 @@ router = APIRouter()
 Database = Annotated[Session, Depends(get_db)]
 Actor = Annotated[User, Depends(get_current_user)]
 Scope = Literal["public", "private", "both"]
+
+
+@router.get("/history")
+def history(db: Database, actor: Actor, response: Response,
+            before_id: int | None = Query(None, gt=0), limit: int = Query(20, ge=1, le=50),
+            analysis_type: Literal["summary", "compare", "analyze", "contradictions", "candidate_gaps"] | None = None,
+            status: Literal["processing", "complete", "failed", "insufficient_evidence"] | None = None,
+            scope: Scope | None = None):
+    response.headers["Cache-Control"] = "no-store"
+    return analysis_history.history(db, actor, before_id=before_id, limit=limit,
+        analysis_type=analysis_type, status=status, scope=scope)
+
+
+@router.get("/history/{run_id}")
+def history_result(run_id: int, db: Database, actor: Actor, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return analysis_history.read(db, actor, run_id)
 
 
 class SelectionRequest(BaseModel):

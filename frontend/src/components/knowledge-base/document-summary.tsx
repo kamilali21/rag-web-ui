@@ -6,6 +6,7 @@ import { FileText, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api";
 import { DocumentSummary, SummaryCitation, SummaryScope } from "@/lib/document-summary";
+import { comparisonRequestId } from "@/lib/comparison";
 
 const unavailableText = "Not identified in retrieved evidence.";
 
@@ -25,12 +26,14 @@ export function DocumentSummaryPanel({ documentId, scope }: { documentId: number
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
+  const requestId = useRef<string | null>(null);
 
   useEffect(() => {
     request.current?.abort();
     setSummary(null);
     setLoading(false);
     setError("");
+    requestId.current = null;
     return () => request.current?.abort();
   }, [documentId, scope]);
 
@@ -40,15 +43,19 @@ export function DocumentSummaryPanel({ documentId, scope }: { documentId: number
     request.current = controller;
     setLoading(true);
     setError("");
+    if (!requestId.current) requestId.current = comparisonRequestId();
     try {
       const result: DocumentSummary = await api.post(
         "/api/retrieval/documents/summarize",
-        { document_id: documentId, scope },
+        { document_id: documentId, scope, request_id: requestId.current },
         { signal: controller.signal },
       );
-      if (!controller.signal.aborted) setSummary(result);
+      if (!controller.signal.aborted) { setSummary(result); requestId.current = null; }
     } catch (failure) {
-      if (!controller.signal.aborted) setError(errorText(failure));
+      if (!controller.signal.aborted) {
+        setError(errorText(failure));
+        if (failure instanceof ApiError && failure.status > 0) requestId.current = null;
+      }
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
@@ -59,12 +66,18 @@ export function DocumentSummaryPanel({ documentId, scope }: { documentId: number
       {loading ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}
       {loading ? "Summarizing..." : summary ? "Refresh summary" : "Summarize paper"}
     </Button>
+    <p className="insights-workflow-note">New summaries are saved privately in <a className="insights-text-action" href="/dashboard/insights/history">Analysis history</a>.</p>
     {loading && <p role="status" className="document-summary-status">Retrieving evidence from this paper and preparing its summary...</p>}
     {error && <div role="alert" className="document-summary-error">
       <p>{error}</p>
       <Button type="button" variant="outline" disabled={loading} onClick={() => void summarize()}>Retry summary</Button>
     </div>}
-    {summary && <section className="document-summary" aria-label="Evidence-grounded summary">
+    {summary && <><SummaryResult summary={summary} />{summary.run_id && <a className="insights-text-action" href={`/dashboard/insights/history?run=${summary.run_id}`}>Reopen saved summary</a>}</>}
+  </div>;
+}
+
+export function SummaryResult({ summary }: { summary: DocumentSummary }) {
+  return <section className="document-summary" aria-label="Evidence-grounded summary">
       <h3><FileText size={17} aria-hidden="true" /> Evidence-grounded summary</h3>
       {summary.status === "insufficient_evidence" && <p role="status" className="document-summary-status">{summary.message}</p>}
       <div className="document-summary-sections">
@@ -85,6 +98,5 @@ export function DocumentSummaryPanel({ documentId, scope }: { documentId: number
             </li>)}</ul>}
         </section>)}
       </div>
-    </section>}
-  </div>;
+    </section>;
 }

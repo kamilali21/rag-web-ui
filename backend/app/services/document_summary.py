@@ -1,4 +1,8 @@
-"""Temporary, exact-document academic summaries with server-validated citations."""
+"""Exact-document summaries with validated citations and owner-private history."""
+import hashlib
+import math
+from datetime import datetime
+from uuid import uuid4
 import json
 import logging
 import re
@@ -10,9 +14,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from openai import APIError, RateLimitError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
-from app.models import Document, User
+from app.models import Document, User, DocumentChunk, AnalysisRun, AnalysisDocument, AnalysisEvidence
+from app.services import comparison
 from app.schemas.document_summary import (
     DocumentSummaryRequest,
     DocumentSummaryResponse,
@@ -258,7 +264,64 @@ def _generate_draft(evidence: list[dict]) -> SummaryDraft:
 
 @personal_generation
 def summarize_document(db: Session, actor: User, request: DocumentSummaryRequest) -> DocumentSummaryResponse:
-    """Return temporary claims based only on the one authorized, ready document."""
+    actor_id = actor.id
+    actor, document, _ = _fresh_document_scope(db, actor_id, request.document_id, request.scope)
+    payload = {"document_id": request.document_id, "document_ids": [request.document_id], "scope": request.scope}
+    request_id = str(request.request_id or uuid4())
+    existing = db.query(AnalysisRun).filter_by(user_id=actor_id, request_id=request_id).one_or_none()
+    if existing:
+        if existing.analysis_type != "summary" or existing.request_json != payload:
+            raise HTTPException(409, "This request ID was already used with different options")
+        saved = comparison.read_run(db, actor, existing.id, "summary")
+        if saved['result'] is None:
+            raise HTTPException(409, "Summary already recorded. Check Analysis history for its status.")
+        return DocumentSummaryResponse.model_validate({**saved['result'], "run_id": existing.id})
+    run = AnalysisRun(user_id=actor_id, request_id=request_id, analysis_type="summary",
+                      scope=request.scope, request_json=payload)
+    db.add(run)
+    try:
+        db.flush()
+        db.add(AnalysisDocument(analysis_id=run.id, source_document_id=document.id,
+                               document_id=document.id, document_hash=document.file_hash, role="selected"))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Summary request already exists. Check Analysis history.") from None
+    run_id = run.id
+    snapshots = []
+    try:
+        result = _summarize_document(db, actor, request, snapshots)
+        actor, _, _ = _fresh_document_scope(db, actor_id, request.document_id, request.scope)
+        run = db.get(AnalysisRun, run_id)
+        comparison.validate_run_sources(db, actor, run)
+        for item in snapshots:
+            chunk = db.get(DocumentChunk, item['chunk_id'])
+            if (chunk is None or chunk.document_id != request.document_id or
+                (chunk.chunk_metadata or {}).get('page_content', '')[:MAX_EVIDENCE_CHARACTERS] != item['excerpt']):
+                raise HTTPException(409, "Summary evidence changed. Please retry.")
+            db.add(AnalysisEvidence(analysis_id=run_id, source_document_id=request.document_id,
+                                   document_id=request.document_id, **item))
+        result.run_id = run_id
+        run.result_json = result.model_dump(mode="json")
+        run.status = result.status
+        run.completed_at = datetime.utcnow()
+        db.commit()
+        return result
+    except Exception as error:
+        db.rollback()
+        failed = db.get(AnalysisRun, run_id)
+        if failed:
+            failed.status = "failed"
+            failed.completed_at = datetime.utcnow()
+            failed.error_message = error.detail if isinstance(error, HTTPException) else "Summary could not be completed. Please retry."
+            db.commit()
+        if isinstance(error, HTTPException): raise
+        logger.warning("Summary persistence failed (%s)", type(error).__name__)
+        raise HTTPException(503, "Summary could not be completed. Please retry.") from None
+
+
+def _summarize_document(db, actor, request, snapshots):
+    """Generate claims using only the one authorized, ready document."""
     require_active_user(actor)
     actor_id = actor.id
     actor, document, kb_id = _fresh_document_scope(db, actor_id, request.document_id, request.scope)
@@ -290,10 +353,19 @@ def summarize_document(db: Session, actor: User, request: DocumentSummaryRequest
         if not isinstance(content, str) or not content.strip():
             continue
         evidence_id = f"E{index}"
+        chunk_id = metadata.get("chunk_id")
+        chunk = db.get(DocumentChunk, chunk_id) if isinstance(chunk_id, str) else None
+        if chunk is None or chunk.document_id != document.id or chunk.kb_id != kb_id or (chunk.chunk_metadata or {}).get('page_content') != content:
+            raise HTTPException(503, "Document evidence could not be safely validated.")
         page = metadata.get("page")
         if type(page) is not int or page < 0:
             page = None
         evidence.append({"evidence_id": evidence_id, "page": page, "text": content[:MAX_EVIDENCE_CHARACTERS]})
+        score = item.get('score')
+        snapshots.append({"evidence_id": evidence_id, "chunk_id": chunk_id, "page": page,
+            "excerpt": content[:MAX_EVIDENCE_CHARACTERS], "retrieval_rank": index,
+            "retrieval_score": score if type(score) in (int, float) and math.isfinite(score) else None,
+            "evidence_hash": hashlib.sha256(content[:MAX_EVIDENCE_CHARACTERS].encode()).hexdigest()})
         citation_map[evidence_id] = SummaryCitation(
             id=index,
             document_id=document.id,

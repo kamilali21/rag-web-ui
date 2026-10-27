@@ -20,7 +20,7 @@ const result = {
 
 beforeEach(() => jest.clearAllMocks());
 
-test("requests a temporary summary for the selected scope and links verified citations to its source page", async () => {
+test("requests a saved summary for the selected scope and links verified citations to its source page", async () => {
   jest.mocked(api.post).mockResolvedValue(result);
   const user = userEvent.setup();
   render(<DocumentSummaryPanel documentId={28} scope="private" />);
@@ -28,7 +28,7 @@ test("requests a temporary summary for the selected scope and links verified cit
   await user.click(screen.getByRole("button", { name: "Summarize paper" }));
   expect(await screen.findByText("The study evaluates irrigation efficiency.")).toBeInTheDocument();
   expect(screen.getByText("Not identified in retrieved evidence.")).toBeInTheDocument();
-  expect(api.post).toHaveBeenCalledWith("/api/retrieval/documents/summarize", { document_id: 28, scope: "private" }, expect.anything());
+  expect(api.post).toHaveBeenCalledWith("/api/retrieval/documents/summarize", { document_id: 28, scope: "private", request_id: expect.any(String) }, expect.anything());
   expect(screen.getByRole("link", { name: "Open water-study.pdf, page 3" })).toHaveAttribute(
     "href", "/api/knowledge-base/4/documents/28/content?inline=true#page=3",
   );
@@ -46,5 +46,5 @@ test("shows a retry action after an API error and succeeds on retry", async () =
   await user.click(screen.getByRole("button", { name: "Retry summary" }));
   await screen.findByText("The study evaluates irrigation efficiency.");
   await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2));
-  expect(api.post).toHaveBeenLastCalledWith("/api/retrieval/documents/summarize", { document_id: 28, scope: "public" }, expect.anything());
+  expect(api.post).toHaveBeenLastCalledWith("/api/retrieval/documents/summarize", { document_id: 28, scope: "public", request_id: expect.any(String) }, expect.anything());
 });

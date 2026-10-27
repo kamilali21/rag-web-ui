@@ -132,6 +132,7 @@ export function Insights() {
       </div>
     </div>
     <p className="insights-catalog-note">Explore ready papers. Compare two to five studies, or analyse selected research with cited profiles and related evidence.</p>
+    <a className="insights-text-action history-entry" href="/dashboard/insights/history">Analysis history</a>
     {lastAnalysis && <a className="insights-text-action" href={`/dashboard/insights?analysisRequest=${lastAnalysis}`}>Resume last analysis</a>}
     <form className="public-library-filters" onSubmit={event => { event.preventDefault(); setFilters({ ...draft }); setCursors([null]); }}>
       <div className="library-search">

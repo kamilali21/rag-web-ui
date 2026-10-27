@@ -22,6 +22,7 @@ export interface SummarySection {
 }
 
 export interface DocumentSummary {
+  run_id?: number;
   status: "complete" | "insufficient_evidence";
   message: string | null;
   document: {

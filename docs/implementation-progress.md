@@ -16,7 +16,32 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 19 - Analysis History (not started)
+## Current Gate: Phase 20 - Cross-feature Security (not started)
+
+### Phase 19 closure - 27 October 2026
+
+- Added **Insights → Analysis history**, with workflow/status/scope filters,
+  bounded cursor pagination and reopening of all five saved result types plus
+  stored evidence. No model/retrieval call is made when reopening a saved run.
+- New public/private summaries now persist run status, exact evidence snapshots
+  and validated output, with optional UUID replay protection and a saved-result
+  link. Earlier temporary summaries cannot be recovered. Existing comparison and
+  analysis records appear without regeneration or backfill.
+- History remains owner-only, including against admins. Current access to all
+  selected/related sources and source hashes is checked before showing content;
+  unavailable entries redact questions/titles/documents. No migration: `riq_008`.
+- Generation regression: 149 passed, one opt-in skipped. Corrected a new synthetic
+  fixture and passed all 21 history tests; final history/personal-provider suite:
+  39 passed. Frontend suite: 126 passed, followed by the final expanded 11-test
+  history suite. TypeScript and production frontend build passed.
+- Live synthetic summaries/history/pagination/owner isolation/replay passed;
+  comparison regression completed in 30.01s. Public-source revocation redacted
+  rows and blocked snapshots; private summary remained usable. Original SQL rows,
+  MinIO objects and Chroma vector IDs matched after cleanup.
+- Deployed locally and verified health, protected APIs and served UI/CSS assets.
+  Browser tool reported no connected browser; visual acceptance is not claimed.
+- Receipt: [Phase 19](phase19-analysis-history.md). Annotated checkpoint:
+  `researchiq-phase19-history-20261027`. No push. Phase 20 has not started.
 
 ### Phase 18 closure - 25 October 2026
 
@@ -885,7 +910,7 @@ The live smoke script defaults to `http://nginx/api` inside Docker. Set `BASELIN
 16. Bounded Analyze workflow: complete; see 23 October receipt.
 17. Contradiction interpretation: complete; see 25 October receipt.
 18. Corpus-qualified candidate gaps: complete; see 25 October receipt.
-19. Analysis history.
+19. Analysis history: complete; see 27 October receipt.
 20. Cross-feature security testing.
 21. RAG evaluation.
 22. Deployment hardening and recovery verification.

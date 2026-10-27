@@ -1,4 +1,5 @@
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -8,6 +9,7 @@ class DocumentSummaryRequest(BaseModel):
 
     document_id: int = Field(strict=True, gt=0)
     scope: Literal["public", "private"]
+    request_id: UUID | None = None
 
 
 class SummaryCitation(BaseModel):
@@ -39,6 +41,7 @@ class SummaryDocument(BaseModel):
 
 
 class DocumentSummaryResponse(BaseModel):
+    run_id: int | None = None
     status: Literal["complete", "insufficient_evidence"]
     message: str | None = None
     document: SummaryDocument

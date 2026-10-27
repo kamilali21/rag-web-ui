@@ -625,6 +625,28 @@
 .insights-table .document-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .insights-selection-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 0; font-size: 14px; color: hsl(var(--muted-foreground)); }
 .insights-catalog-note { color: hsl(var(--muted-foreground)); font-size: 14px; margin-bottom: 18px; }
+.history-entry { align-self: flex-start; margin-bottom: 16px; }
+.history-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.history-filters label { display: grid; gap: 6px; flex: 1 1 160px; min-width: 0; font-size: 13px; }
+.history-filters select { width: 100%; color: hsl(var(--foreground)); background: hsl(var(--background)); }
+.history-filters option { color: hsl(var(--foreground)); background: hsl(var(--background)); }
+.history-table { table-layout: fixed; }
+.history-table th:first-child { width: 40%; }
+.history-table th:last-child { width: 90px; }
+.history-table td { font-size: 14px; overflow-wrap: anywhere; }
+.history-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-table small { display: block; margin-top: 4px; color: hsl(var(--muted-foreground)); font-size: 12px; }
+@media (max-width: 700px) {
+  .history-table, .history-table tbody { display: block; }
+  .history-table thead { display: none; }
+  .history-table tbody { display: grid; gap: 10px; }
+  .history-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 12px; border: 1px solid hsl(var(--border)); border-radius: var(--radius); background: hsl(var(--card)); }
+  .history-table td, .history-table td:first-child, .history-table td:last-child { display: block; height: auto; padding: 0; border: 0; background: transparent; }
+  .history-table td:first-child { grid-column: 1 / -1; }
+  .history-table td[data-label] { grid-column: 1; font-size: 12px; }
+  .history-table td[data-label]::before { content: attr(data-label) ": "; color: hsl(var(--muted-foreground)); }
+  .history-table td:last-child { grid-column: 2; grid-row: 2 / 5; align-self: center; }
+}
 .insights-scope button { width: auto; min-width: 70px; padding-inline: 12px; }
 .insights-select-visible { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
 .insights-document-select input, .insights-select-visible input { width: 18px; height: 18px; accent-color: hsl(var(--primary)); }

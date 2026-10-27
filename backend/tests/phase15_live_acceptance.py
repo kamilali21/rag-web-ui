@@ -56,8 +56,8 @@ def pdf(name, public=False, contradiction=False):
     result = io.BytesIO(); writer.write(result); return result.getvalue()
 
 
-def run(extra_acceptance=None, phase="phase15"):
-    if phase not in {"phase15", "phase16", "phase17", "phase18", "personal_ai"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
+def run(extra_acceptance=None, phase="phase15", after_comparison=None):
+    if phase not in {"phase15", "phase16", "phase17", "phase18", "phase19", "personal_ai"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
         raise SystemExit("Explicit opt-in and local Windows origin required")
     db = SessionLocal()
     inspector = sa.inspect(db.bind)
@@ -153,6 +153,8 @@ def run(extra_acceptance=None, phase="phase15"):
         checked(owner, "POST", f"/api/corpus/documents/{public_id}/unpublish")
         checked(owner, "GET", f"/api/insights/comparisons/{run_id}", expected=404)
         passed("Revocation hides saved results and private source remains owner-only")
+        if after_comparison:
+            after_comparison(owner, other, private_id, public_id, run_id, passed)
         Path(f".local/tmp/{phase}-live-result.json").write_text(json.dumps({"duration_seconds": elapsed, "synthetic_result": response}, default=str))
     finally:
         if public_id is not None:

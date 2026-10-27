@@ -172,6 +172,14 @@ def read_run(db, actor, run_id, analysis_type="compare"):
     run = db.query(AnalysisRun).filter_by(id=run_id, user_id=actor_id).filter(AnalysisRun.analysis_type.in_(types)).one_or_none()
     if run is None:
         raise HTTPException(404, "Comparison unavailable")
+    validate_run_sources(db, actor, run)
+    return {"id": run.id, "status": run.status, "created_at": run.created_at,
+            "completed_at": run.completed_at, "error_message": run.error_message,
+            "result": run.result_json}
+
+
+def validate_run_sources(db, actor, run):
+    """Shared current-source gate for saved results and history metadata."""
     # Result snapshots stay private even if every source paper is public.
     selection(db, actor, run.scope, run.request_json["document_ids"])
     sources = db.query(AnalysisDocument).filter_by(analysis_id=run.id).all()
@@ -181,9 +189,6 @@ def read_run(db, actor, run_id, analysis_type="compare"):
         doc = db.get(Document, source.document_id) if source.document_id else None
         if doc is None or doc.file_hash != source.document_hash:
             raise HTTPException(404, "Comparison sources are no longer available")
-    return {"id": run.id, "status": run.status, "created_at": run.created_at,
-            "completed_at": run.completed_at, "error_message": run.error_message,
-            "result": run.result_json}
 
 
 def validated_result(request, documents, evidence, draft):
