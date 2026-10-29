@@ -1,4 +1,6 @@
 """Phase 12 profile privacy and request-scoped publication lifecycle tests."""
+from io import BytesIO
+from PIL import Image
 from app.models import Document, DocumentChunk
 from app.models.knowledge import ProcessingTask
 from app.models.research import Department
@@ -7,6 +9,12 @@ from app.api.api_v1 import researcher as researcher_api
 from app.services import private_library, researcher_publications as workflow
 from tests.test_phase2_authorization import world
 from tests.test_phase4_public_corpus import corpus
+
+
+def profile_image():
+    output = BytesIO()
+    Image.new("RGB", (2, 2), "green").save(output, format="PNG")
+    return output.getvalue()
 
 
 def prepare_private_document(w):
@@ -69,7 +77,7 @@ def test_profile_owner_validation_and_bounded_private_photo(corpus, monkeypatch)
     assert w.client.get("/api/researcher/profile", headers=w.headers(w.bob)).json() is None
     assert w.client.put("/api/researcher/profile", headers=w.headers(w.bob), json=profile_payload(department.id)).status_code == 200
     monkeypatch.setattr(workflow, "get_minio_client", lambda: w.storage)
-    image = b"\x89PNG\r\n\x1a\n" + b"synthetic-image-data"
+    image = profile_image()
     uploaded = w.client.put("/api/researcher/profile/photo", headers=w.headers(w.alice), files={"file": ("profile.png", image, "image/png")})
     assert uploaded.status_code == 200
     assert w.client.get("/api/researcher/profile/photo", headers=w.headers(w.alice)).content == image
@@ -119,7 +127,7 @@ def test_approved_copy_publishes_after_index_and_withdrawal_archives(corpus, mon
     original_path, original_chunks = private_document.file_path, [chunk.id for chunk in private_document.chunks]
     original_vectors = dict(w.store.documents)
     request_id = request["id"]
-    image = b"\x89PNG\r\n\x1a\n" + b"synthetic-profile-image"
+    image = profile_image()
     photo_upload = w.client.put("/api/researcher/profile/photo", headers=w.headers(w.alice),
         files={"file": ("profile.png", image, "image/png")})
     assert photo_upload.status_code == 200

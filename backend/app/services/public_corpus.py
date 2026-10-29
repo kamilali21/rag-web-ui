@@ -7,7 +7,6 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import PurePosixPath
 from uuid import uuid4
-from zipfile import BadZipFile
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import and_, or_, func
@@ -24,7 +23,8 @@ from app.models import AcademicDocumentMetadata, Document, DocumentChunk, Knowle
 from app.models.knowledge import DocumentUpload, ProcessingTask
 from app.models.research import Bookmark, Department
 from app.services.authorization import require_active_user, require_admin, require_corpus_admin
-from app.services.document_processor import process_document_background, validate_docx_archive
+from app.services.document_processor import process_document_background
+from app.services.upload_validation import CONTENT_TYPES, validate_document, validate_filename
 from app.services.embedding.embedding_factory import EmbeddingsFactory
 from app.services.vector_store import VectorStoreFactory
 
@@ -32,8 +32,6 @@ SYSTEM_USERNAME = "researchiq_system"
 SYSTEM_EMAIL = "researchiq-system@internal.invalid"
 CORPUS_NAME = "UAF Research Corpus"
 MAX_FILE_BYTES = 20 * 1024 * 1024
-CONTENT_TYPES = {".pdf": "application/pdf", ".txt": "text/plain", ".md": "text/markdown",
-                 ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
 logger = logging.getLogger(__name__)
 
 
@@ -244,11 +242,7 @@ def archive_document(db: Session, actor: User, document_id: int):
 
 
 def _filename(name: str) -> str:
-    if (not name or len(name) > 150 or len(name.encode("utf-8")) > 180 or name in {".", ".."} or "/" in name or "\\" in name
-            or any(ord(c) < 32 or ord(c) == 127 for c in name)
-            or PurePosixPath(name).suffix.lower() not in CONTENT_TYPES):
-        raise HTTPException(400, "Use a filename of up to 150 characters with PDF, DOCX, TXT or MD extension")
-    return name
+    return validate_filename(name, max_chars=150, max_bytes=180)
 
 
 def _object_path(corpus_id: int, path: str) -> str:
@@ -267,20 +261,15 @@ async def upload(db: Session, actor: User, file: UploadFile) -> ProcessingTask:
     name = _filename(file.filename or "")
     content = await file.read(MAX_FILE_BYTES + 1)
     # Added by ChatGPT: synchronous SQL/ZIP/MinIO work must not block the API event loop.
-    return await run_in_threadpool(_stage_upload, db, actor, corpus, name, content)
+    return await run_in_threadpool(_stage_upload, db, actor, corpus, name, content, file.content_type)
 
 
-def _stage_upload(db: Session, actor: User, corpus: KnowledgeBase, name: str, content: bytes) -> ProcessingTask:
+def _stage_upload(db: Session, actor: User, corpus: KnowledgeBase, name: str, content: bytes,
+                  declared_type: str | None = None) -> ProcessingTask:
     if not content or len(content) > MAX_FILE_BYTES:
         raise HTTPException(413, "A non-empty document up to 20 MiB is required")
     ext = PurePosixPath(name).suffix.lower()
-    if ext == ".pdf" and not content.startswith(b"%PDF-"):
-        raise HTTPException(400, "Invalid PDF document")
-    if ext == ".docx":
-        try:
-            validate_docx_archive(BytesIO(content))
-        except BadZipFile:
-            raise HTTPException(400, "Invalid or oversized DOCX document") from None
+    validate_document(name, content, declared_type)
     # Serialize names with rename/upload. No lock is held across background ingestion.
     _lock_corpus(db, actor)
     if (db.query(Document.id).filter(Document.knowledge_base_id == corpus.id,

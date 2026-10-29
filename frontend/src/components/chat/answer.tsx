@@ -19,6 +19,7 @@ import rehypeHighlight from "rehype-highlight";
 import { api } from "@/lib/api";
 import { FileIcon } from "react-file-icon";
 import { remarkCitations } from "@/lib/citations";
+import { answerImagePlaceholder } from "@/lib/answer-images";
 
 // Debounce hook to prevent rapid state updates during streaming
 const useDebouncedValue = <T,>(value: T, delay: number): T => {
@@ -223,6 +224,8 @@ export const Answer: FC<{
         rehypePlugins={[rehypeHighlight]}
         components={{
           a: CitationLink,
+          // Model/source text must not trigger third-party image requests with private data.
+          img: answerImagePlaceholder,
         }}
       >
         {processedMarkdown}

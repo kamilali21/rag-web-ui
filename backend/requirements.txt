@@ -28,3 +28,4 @@ langchain-ollama==0.2.3
 langchain-huggingface>=0.1.0
 sentence-transformers>=2.2.0
 docx2txt==0.8
+Pillow==13.0.0

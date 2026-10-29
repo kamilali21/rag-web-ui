@@ -208,11 +208,8 @@ def test_private_docx_expansion_is_rejected_before_parser_or_embeddings(library,
     base = f"/api/knowledge-base/{w.alice_kb.id}/documents"
     staged = w.client.post(base + "/upload", files={"files": ("oversized.docx", compressed.getvalue(),
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}, headers=w.headers(w.alice))
-    assert staged.status_code == 200
-    processed = w.client.post(base + "/process", json=staged.json(), headers=w.headers(w.alice))
-    assert processed.status_code == 200
-    w.db.rollback()
-    task = w.db.get(ProcessingTask, processed.json()["tasks"][0]["task_id"])
-    assert task.status == "failed" and task.document_id is None
+    assert staged.status_code == 400
+    assert not w.db.query(DocumentUpload).filter_by(file_name="oversized.docx").first()
+    assert not w.storage.objects
     parser.assert_not_called()
     embeddings.assert_not_called()

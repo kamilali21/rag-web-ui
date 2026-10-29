@@ -1,5 +1,6 @@
 """Owner-scoped profiles and request-scoped publication review."""
 import logging
+import warnings
 from datetime import datetime
 from io import BytesIO
 from uuid import uuid4
@@ -20,7 +21,8 @@ from app.services.authorization import require_active_user
 
 logger = logging.getLogger(__name__)
 MAX_PROFILE_PHOTO_BYTES = 3 * 1024 * 1024
-PROFILE_PHOTO_TYPES = {b"\x89PNG\r\n\x1a\n": ("image/png", "png"), b"\xff\xd8\xff": ("image/jpeg", "jpg")}
+PROFILE_PHOTO_TYPES = {"PNG": ("image/png", "png"), "JPEG": ("image/jpeg", "jpg"), "WEBP": ("image/webp", "webp")}
+MAX_PROFILE_PHOTO_PIXELS = 16_000_000
 MAX_PUBLICATION_BYTES = public_corpus.MAX_FILE_BYTES
 PUBLIC_METADATA_FIELDS = (
     "title", "authors_text", "abstract", "department_id", "document_type", "publication_year",
@@ -68,16 +70,25 @@ def save_profile(db: Session, actor: User, payload: ResearcherProfileWrite):
 
 
 def _photo_type(content: bytes):
+    from PIL import Image, UnidentifiedImageError
+
     if len(content) > MAX_PROFILE_PHOTO_BYTES:
         raise HTTPException(413, "Choose an image up to 3 MiB")
-    if len(content) < 16:
-        raise HTTPException(415, "Profile photos must be PNG, JPEG or WebP images")
-    for signature, result in PROFILE_PHOTO_TYPES.items():
-        if content.startswith(signature):
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(BytesIO(content), formats=list(PROFILE_PHOTO_TYPES)) as image:
+                result = PROFILE_PHOTO_TYPES[image.format]
+                if image.width * image.height > MAX_PROFILE_PHOTO_PIXELS or getattr(image, "n_frames", 1) != 1:
+                    raise ValueError("Oversized or animated profile image")
+                image.verify()
+            # verify() alone does not decode JPEG pixels. Force a bounded full decode too.
+            with Image.open(BytesIO(content), formats=list(PROFILE_PHOTO_TYPES)) as image:
+                image.load()
             return result
-    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
-        return "image/webp", "webp"
-    raise HTTPException(415, "Profile photos must be PNG, JPEG or WebP images")
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError,
+            Image.DecompressionBombWarning, Image.DecompressionBombError):
+        raise HTTPException(415, "Use a valid still PNG, JPEG or WebP image up to 16 megapixels") from None
 
 
 def save_profile_photo(db: Session, actor: User, content: bytes):

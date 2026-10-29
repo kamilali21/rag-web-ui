@@ -16,7 +16,30 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 20 - Cross-feature Security (not started)
+## Current Gate: Phase 21 - RAG Quality Evaluation (not started)
+
+### Phase 20 closure - 29 October 2026
+
+- Completed the existing cross-feature security gate: OTP abuse, role bypass,
+  private IDs/history, prompt injection, upload abuse and output sanitization.
+- Fixed pre-storage document validation and canonical MIME handling, randomized
+  private staging keys, full bounded profile-photo decoding, and automatic
+  external images in AI chat Markdown. Authentication/publication architecture,
+  provider routing and schema `riq_008` remain unchanged.
+- Full backend regression: **586 passed, 44 opt-in skipped**. Separate disposable
+  MySQL security gate: **41 passed**, including OTP concurrency. Frontend:
+  **132 passed**, TypeScript and real Markdown security pipeline passed. Production
+  frontend build passed; the existing ESLint configuration warning remains.
+- Live synthetic public/private ingestion, permissions, CSRF/origin checks,
+  photo upload/removal, cited comparison (41.82s), saved reopening/revocation and
+  logout passed. Cleanup verified original research SQL records, MinIO objects
+  and Chroma vector IDs unchanged. Transient auth tables are excluded from the
+  SQL fingerprint comparison; fixture auth cleanup uses exact synthetic IDs.
+- Deployed locally; served security/citation assets, health, anonymous rejection
+  and unchanged schema verified. No browser connected, so no visual pass claimed.
+- Receipt and limits: [Phase 20](phase20-cross-feature-security.md). Annotated
+  checkpoint: `researchiq-phase20-security-20261029`. No push. Phase 21 remains
+  the next existing plan gate and has not started.
 
 ### Phase 19 closure - 27 October 2026
 

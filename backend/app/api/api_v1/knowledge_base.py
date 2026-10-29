@@ -1,4 +1,6 @@
 import hashlib
+from pathlib import PurePosixPath
+from uuid import uuid4
 from typing import List, Any, Dict, Literal
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
@@ -32,6 +34,7 @@ from app.services.authorization import (
     private_kb_filter, require_private_document, require_private_knowledge_base,
 )
 from app.services import private_library
+from app.services.upload_validation import validate_document, validate_filename
 
 router = APIRouter()
 
@@ -270,14 +273,14 @@ async def upload_kb_documents(
     uploaded_bytes = 0
     for file in files:
         # A filename is an object-path component, never a path supplied by a client.
-        if not file.filename or "/" in file.filename or "\\" in file.filename or len(file.filename) > 200:
-            raise HTTPException(400, "Use a filename without path separators, up to 200 characters")
+        validate_filename(file.filename or "")
         private_library.lock_collection(db, current_user, kb_id)
         # 1. 计算文件 hash
         file_content = await file.read(MAX_UPLOAD_BYTES - uploaded_bytes + 1)
         uploaded_bytes += len(file_content)
         if uploaded_bytes > MAX_UPLOAD_BYTES:
             raise HTTPException(413, "Upload request exceeds the 100 MiB limit")
+        content_type = validate_document(file.filename, file_content, file.content_type)
         file_hash = hashlib.sha256(file_content).hexdigest()
         
         # 2. 检查是否存在完全相同的文件（名称和hash都相同）
@@ -302,7 +305,7 @@ async def upload_kb_documents(
             raise HTTPException(409, "Filename already in use; remove its document or upload before uploading again")
         
         # 3. 上传到临时目录
-        temp_path = f"kb_{kb_id}/temp/{file.filename}"
+        temp_path = f"kb_{kb_id}/temp/{uuid4().hex}{PurePosixPath(file.filename).suffix.lower()}"
         await file.seek(0)
         try:
             minio_client = get_minio_client()
@@ -312,7 +315,7 @@ async def upload_kb_documents(
                 object_name=temp_path,
                 data=file.file,
                 length=file_size,  # 指定文件大小
-                content_type=file.content_type
+                content_type=content_type
             )
         except MinioException as e:
             logger.error(f"Failed to upload file to MinIO: {str(e)}")
@@ -324,7 +327,7 @@ async def upload_kb_documents(
             file_name=file.filename,
             file_hash=file_hash,
             file_size=len(file_content),
-            content_type=file.content_type,
+            content_type=content_type,
             temp_path=temp_path
         )
         db.add(upload)
