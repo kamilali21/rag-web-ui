@@ -25,7 +25,7 @@ export function getAuthHeaders(): Record<string, string> {
 export const authenticatedFetch: typeof fetch = (input, init) => {
   const headers = new Headers(init?.headers);
   Object.entries(getAuthHeaders()).forEach(([key, value]) => headers.set(key, value));
-  return fetch(input, { ...init, credentials: 'same-origin', headers });
+  return fetch(input, { ...init, cache: 'no-store', credentials: 'same-origin', headers });
 };
 
 export async function fetchApi(fullUrl: string, options: FetchOptions = {}) {
@@ -43,6 +43,7 @@ export async function fetchApi(fullUrl: string, options: FetchOptions = {}) {
 
   const config: RequestInit = {
     ...restOptions,
+    cache: 'no-store',
     credentials: 'same-origin',
     headers,
   };

@@ -46,9 +46,16 @@ test('chat streams read rotated CSRF credentials at request time', async () => {
   expect(request.headers.get('X-CSRF-Token')).toBe('first');
   expect(request.headers.get('Content-Type')).toBe('application/json');
   expect(request.credentials).toBe('same-origin');
+  expect(request.cache).toBe('no-store');
   document.cookie = 'researchiq_local_csrf=rotated; Path=/';
   await authenticatedFetch('/api/chat/1/messages', { method: 'POST' });
   request = (fetch as jest.Mock).mock.calls[1][1];
   expect(request.headers.get('X-CSRF-Token')).toBe('rotated');
   expect(request.headers.has('Authorization')).toBe(false);
+});
+
+test('private JSON reads cannot opt into browser caching', async () => {
+  (fetch as jest.Mock).mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+  await api.get('/api/researcher/profile', { cache: 'force-cache' });
+  expect(fetch).toHaveBeenCalledWith('/api/researcher/profile', expect.objectContaining({ cache: 'no-store' }));
 });

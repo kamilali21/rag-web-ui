@@ -120,6 +120,8 @@ def world():
     db.commit()
 
     app = FastAPI()
+    from app.core.http_privacy import install_http_privacy
+    install_http_privacy(app)
     app.include_router(api_router, prefix="/api")
     app.include_router(openapi_router, prefix="/openapi")
 

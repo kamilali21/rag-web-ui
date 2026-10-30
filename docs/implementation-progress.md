@@ -16,7 +16,31 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 - Record deviations, tests, limitations, and the next gate here.
 - A mock or sample UI is not a completed backend feature.
 
-## Current Gate: Phase 21 - RAG Quality Evaluation (not started)
+## Current Gate: Phase 21 - RAG Quality Evaluation (live acceptance remaining)
+
+### Phase 21 evaluation checkpoint - 30 October 2026
+
+- Added a reproducible synthetic retrieval/faithfulness/citation/abstention,
+  comparison/analysis and latency benchmark with hostile-document and forged
+  client-scope probes. Final run: **12/13 cases passed** plus comparison,
+  saved reopening/revocation and exact original SQL/MinIO/vector cleanup checks.
+- Overview analysis intermittently fails structured-profile validation (HTTP 502).
+  Phase 21 is **not closed**; fix that bounded-generation issue and repeat the
+  quality gate before Phase 22. Earlier gap output failed verbatim-quote validation;
+  the final gap test passed. Failures remain documented, not hidden by retries.
+- Fixed private-response caching and validation-value echoes; frontend requests
+  explicitly avoid cache. Tightened interpretation to avoid invented mechanisms
+  after manual review found unsupported weather/evaporation explanations.
+- Backend: **597 passed, 44 opt-in skipped**; final focused interpretation/gap:
+  **52 passed**. Frontend: **133 passed**, TypeScript and production build passed;
+  existing ESLint-option warning remains. Changes deployed locally; no schema or
+  provider change. Authenticated AI-provider keys remain encrypted; legacy
+  application-key plaintext storage is a documented production blocker.
+- Removed **4.228 GB Docker build cache + 425.6 MiB local build/test cache**;
+  preserved volumes, documents, vectors, secrets, recovery images and backups.
+- Full receipt, quality limits and deployment recommendation:
+  [Phase 21 evaluation](phase21-rag-evaluation.md). Checkpoint tag:
+  `researchiq-phase21-evaluation-checkpoint-20261030`. No push or public deployment.
 
 ### Phase 20 closure - 29 October 2026
 

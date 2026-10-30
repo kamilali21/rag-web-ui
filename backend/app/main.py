@@ -3,6 +3,7 @@ import logging
 from app.api.api_v1.api import api_router
 from app.api.openapi.api import router as openapi_router
 from app.core.config import settings
+from app.core.http_privacy import install_http_privacy
 from app.core.minio import init_minio
 from app.startup.migarate import DatabaseMigrator
 from fastapi import FastAPI
@@ -19,6 +20,7 @@ app = FastAPI(
 )
 
 # Include routers
+install_http_privacy(app)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(openapi_router, prefix="/openapi")
 

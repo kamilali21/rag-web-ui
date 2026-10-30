@@ -37,7 +37,7 @@ def snapshot(connection, tables):
     return result
 
 
-def pdf(name, public=False, contradiction=False):
+def pdf(name, public=False, contradiction=False, extra_lines=()):
     lines = ["Synthetic software acceptance study " + name,
         "Objective: compare drip irrigation and flood irrigation water use.",
         "Method: randomized trial of drip versus flood irrigation.",
@@ -47,6 +47,7 @@ def pdf(name, public=False, contradiction=False):
         "Conclusion: drip did not reduce water use in the studied setting." if contradiction else "Conclusion: drip reduced water use in the studied setting.",
         "Future work: multi-season field validation is required.",
         "These are fabricated test data, not real scientific findings."]
+    lines.extend(extra_lines)
     writer = PdfWriter(); page = writer.add_blank_page(width=612, height=792)
     font = DictionaryObject({NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"), NameObject("/BaseFont"): NameObject("/Helvetica")})
     page[NameObject("/Resources")] = DictionaryObject({NameObject("/Font"): DictionaryObject({NameObject("/F1"): writer._add_object(font)})})
@@ -56,9 +57,10 @@ def pdf(name, public=False, contradiction=False):
     result = io.BytesIO(); writer.write(result); return result.getvalue()
 
 
-def run(extra_acceptance=None, phase="phase15", after_comparison=None):
-    if phase not in {"phase15", "phase16", "phase17", "phase18", "phase19", "phase20", "personal_ai"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
+def run(extra_acceptance=None, phase="phase15", after_comparison=None, pdf_factory=None):
+    if phase not in {"phase15", "phase16", "phase17", "phase18", "phase19", "phase20", "phase21", "personal_ai"} or os.getenv(f"{phase.upper()}_LIVE_ACCEPTANCE") != "1" or settings.AUTH_ORIGIN != "http://127.0.0.1.nip.io":
         raise SystemExit("Explicit opt-in and local Windows origin required")
+    make_pdf = pdf_factory or pdf
     db = SessionLocal()
     inspector = sa.inspect(db.bind)
     tables = {name: [col["name"] for col in inspector.get_columns(name)] for name in inspector.get_table_names()
@@ -98,7 +100,7 @@ def run(extra_acceptance=None, phase="phase15", after_comparison=None):
         db.commit()
         owner, other = clients
         kb_id = checked(owner, "POST", "/api/knowledge-base", json={"name": name}).json()["id"]
-        uploaded = checked(owner, "POST", f"/api/knowledge-base/{kb_id}/documents/upload", files={"files": (f"{name}-private.pdf", pdf(name), "application/pdf")}).json()
+        uploaded = checked(owner, "POST", f"/api/knowledge-base/{kb_id}/documents/upload", files={"files": (f"{name}-private.pdf", make_pdf(name), "application/pdf")}).json()
         tasks = checked(owner, "POST", f"/api/knowledge-base/{kb_id}/documents/process", json=uploaded).json()["tasks"]
         task_id = tasks[0]["task_id"]
         # Windows cold-start embedding imports can exceed four minutes.
@@ -111,7 +113,7 @@ def run(extra_acceptance=None, phase="phase15", after_comparison=None):
         else: raise RuntimeError("Private processing timed out")
         private_id = checked(owner, "GET", f"/api/knowledge-base/{kb_id}").json()["documents"][0]["id"]
         public_task = checked(owner, "POST", "/api/corpus/documents/upload", expected=202,
-            files={"file": (f"{name}-public.pdf", pdf(name, True), "application/pdf")}).json()["id"]
+            files={"file": (f"{name}-public.pdf", make_pdf(name, True), "application/pdf")}).json()["id"]
         deadline = time.monotonic() + 240
         while time.monotonic() < deadline:
             task = checked(owner, "GET", f"/api/corpus/tasks/{public_task}").json()

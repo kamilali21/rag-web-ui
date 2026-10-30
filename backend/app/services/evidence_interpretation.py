@@ -19,6 +19,9 @@ wrong, scientifically invalid, more credible or universally applicable. Retrieva
 Context factors may use only population, environment, dataset, methodology, time_period, sample_size, measurement.
 Include a factor only when the passages document it. Distinguish a documented difference from a possible explanation;
 do not claim it caused disagreement. State when reasons cannot be determined from retrieved evidence.
+Describe only the documented difference itself; do not append an imagined mechanism, even with 'may' or 'could'.
+Different years do not establish different weather; different crops do not establish soil, climate or biological causes.
+If the passages do not discuss those mechanisms, say the reason for the different findings is not established.
 Interpretation and factor citations must come from that relationship's supporting/contradicting/qualifying IDs.
 Use at most 400 characters per claim/explanation and 1-5 IDs per cited statement; at most 5 IDs per role.
 If no cross-paper relationship can be supported, return {"relationships":[]}.
