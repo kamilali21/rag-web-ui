@@ -144,7 +144,7 @@ def test_all_structured_features_share_owner_config(sources, provider, monkeypat
     def comparison_output(request, evidence): verify(); return compare_draft(request, evidence)
     monkeypatch.setattr(comparison, "generate", comparison_output)
     assert w.client.post("/api/insights/comparisons", headers=w.headers(w.alice), json=compare_payload(w)).status_code == 200
-    def analysis_output(schema, system, payload, budget, label):
+    def analysis_output(schema, system, payload, budget, label, **_kwargs):
         verify(); return model_draft(schema, system, payload, budget, label)
     monkeypatch.setattr(comparison, "generate_structured", analysis_output)
     result = w.client.post("/api/insights/analyses", headers=w.headers(w.alice), json=analyze_payload(w))

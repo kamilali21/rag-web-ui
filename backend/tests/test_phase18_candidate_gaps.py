@@ -32,7 +32,7 @@ def item(refs=None, category='limited_field_validation'):
         'evidence_quotes':[{'evidence_id':ref,'quote':TEXT} for ref in refs]}
 
 
-def draft(schema, system, data, budget, label):
+def draft(schema, system, data, budget, label, **_kwargs):
     if schema is ProfilesDraft: return model_draft(schema, system, data, budget, label)
     return CandidateGapsDraft(candidates=[item([data['evidence'][0]['evidence_id']])])
 
@@ -73,7 +73,7 @@ def test_unauthorized_unready_sources_do_not_generate(papers,generation,target):
 
 @pytest.mark.parametrize('fault',['unknown','duplicate','quote_missing','invented_quote','unqualified','related_only'])
 def test_invalid_patterns_fail_without_persisting_results(papers,provider,monkeypatch,fault):
-    def bad(*args):
+    def bad(*args, **_kwargs):
         value = draft(*args)
         if isinstance(value,CandidateGapsDraft):
             gap = value.candidates[0]
@@ -92,7 +92,7 @@ def test_invalid_patterns_fail_without_persisting_results(papers,provider,monkey
 
 
 def test_empty_supported_patterns_abstain(papers,provider,monkeypatch):
-    monkeypatch.setattr(comparison,'generate_structured',lambda *args: model_draft(*args) if args[0] is ProfilesDraft else CandidateGapsDraft(candidates=[]))
+    monkeypatch.setattr(comparison,'generate_structured',lambda *args, **_kw: model_draft(*args) if args[0] is ProfilesDraft else CandidateGapsDraft(candidates=[]))
     response = post(papers,body(papers)).json()
     assert response['status']=='insufficient_evidence' and response['result']['candidate_gaps']==[]
     assert 'not proven gaps' in response['result']['notice']
@@ -105,7 +105,7 @@ def test_no_evidence_does_not_call_model(papers,provider,generation):
 
 
 def test_source_revocation_while_generating_discards_gaps(papers,provider,monkeypatch):
-    def revoke(*args):
+    def revoke(*args, **_kwargs):
         value=draft(*args)
         if isinstance(value,CandidateGapsDraft):
             papers.published.academic_metadata.publication_status='archived'; papers.db.commit()
@@ -140,7 +140,7 @@ def test_schema_rejects_unknown_categories_and_unbounded_results():
 def test_publication_year_changed_during_generation_is_revalidated(papers,provider,monkeypatch):
     w=papers
     w.published.academic_metadata.publication_year=2010; w.db.commit()
-    def changed(*args):
+    def changed(*args, **_kwargs):
         value=draft(*args)
         if isinstance(value,CandidateGapsDraft):
             value.candidates[0].category='outdated_evidence'

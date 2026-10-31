@@ -82,7 +82,7 @@ def malformed_completion(error):
     return False
 
 
-def generate_structured(schema, system, payload, max_tokens, label):
+def generate_structured(schema, system, payload, max_tokens, label, *, validate_output=None):
     """Shared bounded provider policy for comparison and staged research analysis."""
     model = LLMFactory.create(streaming=False).bind(max_tokens=max_tokens)
     if provider_kind() == "openai":
@@ -144,9 +144,20 @@ def generate_structured(schema, system, payload, max_tokens, label):
             if isinstance(content, list):
                 content = "".join(block if isinstance(block, str) else block["text"] for block in content)
             if isinstance(content, dict):
-                return schema.model_validate(content)
-            fenced = re.fullmatch(r"\s*```(?:json)?\s*\n?(.*?)\n?```\s*", content, re.I | re.S)
-            return schema.model_validate_json(fenced.group(1) if fenced else content)
+                draft = schema.model_validate(content)
+            else:
+                fenced = re.fullmatch(r"\s*```(?:json)?\s*\n?(.*?)\n?```\s*", content, re.I | re.S)
+                draft = schema.model_validate_json(fenced.group(1) if fenced else content)
+            if validate_output is not None:
+                try:
+                    validate_output(draft)
+                except HTTPException as error:
+                    # Invalid model evidence uses the SAME two-attempt budget as
+                    # malformed JSON. Never retry authorization/source changes.
+                    if error.status_code != 502:
+                        raise
+                    raise ValueError("Generated evidence failed validation") from None
+            return draft
         except (ValidationError, ValueError, TypeError, KeyError) as error:
             # Log only error categories: validation inputs can contain private research.
             codes = sorted({item["type"] for item in error.errors(include_input=False)}) if isinstance(error, ValidationError) else [type(error).__name__]

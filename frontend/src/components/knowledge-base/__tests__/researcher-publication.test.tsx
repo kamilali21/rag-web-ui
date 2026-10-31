@@ -50,7 +50,6 @@ test("publication request requires a profile before showing the submission form"
     if (url.startsWith("/api/departments?")) return [{ id: 3, name: "Agronomy", code: "AGR", is_active: true }];
     throw new Error(`Unexpected API GET ${url}`);
   });
-  const user = userEvent.setup();
   render(<PublicationRequestDialog open onOpenChange={jest.fn()} onCreated={jest.fn()} />);
   const dialog = await screen.findByRole("dialog");
   expect(await within(dialog).findByText(/Complete your researcher profile/)).toBeInTheDocument();

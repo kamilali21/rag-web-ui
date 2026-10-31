@@ -18,6 +18,23 @@ byte-identical; the Projects-root working copy is synchronized to the amendment.
 
 ## Current Gate: Phase 21 - RAG Quality Evaluation (live acceptance remaining)
 
+### Maintenance and quality retry - 31 October 2026
+
+- Research-profile evidence validation now shares the existing maximum two
+  generation attempts; permission/source-change failures are never retried.
+  Full regression: 610 passed, 44 opt-in skipped; frontend: 133 passed, strict
+  TypeScript and production build passed (existing ESLint warning remains).
+- Removed seven unreferenced assets, two unused test items and a duplicate
+  dependency declaration. Six superseded test/build images removed after
+  verification: Docker image storage 29.75 GB to 26.59 GB. Production rollback
+  images, volumes, backups and current test dependencies remain.
+- Live quality gate: 12/13 passed. Overview passed; contradiction interpretation
+  returned an error. Comparison, saved reopening/revocation and original
+  SQL/MinIO/vector cleanup equality passed. Phase 21 remains open; diagnose the
+  interpretation failure before Phase 22. No production-readiness claim.
+- Details: [cleanup and hosting review](cleanup-and-hosting-review-20261031.md).
+  Maintenance checkpoint: `researchiq-maintenance-checkpoint-20261031`.
+
 ### Phase 21 evaluation checkpoint - 30 October 2026
 
 - Added a reproducible synthetic retrieval/faithfulness/citation/abstention,

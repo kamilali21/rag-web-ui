@@ -21,7 +21,7 @@ def relationship(refs):
         'context_factors': [{'key': 'methodology', 'explanation': {'text': 'The reported settings may affect comparability.', 'evidence_ids': refs[:2]}}]}
 
 
-def draft(schema, system, data, budget, label):
+def draft(schema, system, data, budget, label, **_kwargs):
     if schema is ProfilesDraft:
         return model_draft(schema, system, data, budget, label)
     refs = list({e['document_id']: e['evidence_id'] for e in data['evidence']}.values())
@@ -76,7 +76,7 @@ def test_private_and_unpublished_papers_never_generate(sources, generation, targ
 
 @pytest.mark.parametrize('fault', ['unknown', 'overlapping_roles', 'duplicate', 'one_paper', 'missing_side', 'unknown_factor_evidence', 'duplicate_factor'])
 def test_invalid_relationships_never_saved(sources, provider, monkeypatch, fault):
-    def invalid(*args):
+    def invalid(*args, **_kwargs):
         value = draft(*args)
         if isinstance(value, InterpretationDraft):
             item = value.relationships[0]
@@ -121,7 +121,7 @@ def test_non_contradicting_classification(role, label):
 
 @pytest.mark.parametrize('evidence_available', [True, False])
 def test_insufficient_evidence_is_not_a_claim_of_agreement(sources, provider, monkeypatch, evidence_available):
-    def empty(*args):
+    def empty(*args, **_kwargs):
         return model_draft(*args) if args[0] is ProfilesDraft else InterpretationDraft(relationships=[])
     model = MagicMock(side_effect=empty); monkeypatch.setattr(comparison, 'generate_structured', model)
     if not evidence_available: monkeypatch.setattr(research_analysis, 'search_documents', lambda *a, **k: [])
@@ -132,7 +132,7 @@ def test_insufficient_evidence_is_not_a_claim_of_agreement(sources, provider, mo
 
 
 def test_revocation_while_interpreting_prevents_persistence(sources, provider, monkeypatch):
-    def revoke(*args):
+    def revoke(*args, **_kwargs):
         result = draft(*args)
         if isinstance(result, InterpretationDraft):
             sources.published.academic_metadata.publication_status = 'archived'; sources.db.commit()

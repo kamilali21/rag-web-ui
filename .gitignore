@@ -72,3 +72,9 @@ backend/.env
 /windows-before-restore.sql
 .env.production
 deploy/tls/
+
+# Local Docker safety inventories may contain resolved environment secrets.
+/compose-safety-snapshot.txt
+/containers-safety-snapshot.txt
+/images-safety-snapshot.txt
+/volumes-safety-snapshot.txt

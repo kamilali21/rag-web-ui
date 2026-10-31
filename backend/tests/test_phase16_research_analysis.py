@@ -15,7 +15,7 @@ def payload(w, **changes):
             "question": "irrigation", "include_related": True, **changes}
 
 
-def model_draft(schema, system, data, max_tokens, label):
+def model_draft(schema, system, data, max_tokens, label, **_kwargs):
     evidence = data["evidence"]
     if schema is ProfilesDraft:
         return ProfilesDraft(profiles=[{"document_id": identity, "fields": [{"key": key, "claims": [
@@ -143,7 +143,7 @@ def test_strict_requests(sources, changes):
 @pytest.mark.parametrize("fault", ["foreign_profile", "unknown_citation", "profile_fields", "missing_profile", "sections", "one_paper_crossstudy"])
 def test_bad_output_not_saved(sources, provider, monkeypatch, fault):
     w = sources
-    def invalid(*args):
+    def invalid(*args, **_kwargs):
         value = model_draft(*args)
         if isinstance(value, ProfilesDraft):
             if fault == "foreign_profile": value.profiles[0].document_id = w.bob_doc.id
@@ -164,7 +164,7 @@ def test_bad_output_not_saved(sources, provider, monkeypatch, fault):
 @pytest.mark.parametrize("stage", ["profiles", "synthesis"])
 def test_revocation_during_generation_fails_closed(sources, provider, monkeypatch, stage):
     w = sources
-    def revoke(*args):
+    def revoke(*args, **_kwargs):
         value = model_draft(*args)
         if (stage == "profiles" and isinstance(value, ProfilesDraft)) or (stage == "synthesis" and isinstance(value, SynthesisDraft)):
             w.published.academic_metadata.publication_status = "archived"; w.db.commit()

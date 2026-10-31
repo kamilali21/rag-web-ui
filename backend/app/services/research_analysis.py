@@ -195,7 +195,8 @@ def analyze(db, actor, request: AnalysisRequest):
         actor, documents = revalidate(db, actor_id, request.scope, request.document_ids, run_id, evidence)
         if evidence:
             draft = comparison.generate_structured(ProfilesDraft, PROFILE_PROMPT, {
-                "document_ids": request.document_ids, "evidence": model_evidence(evidence)}, min(8000, 2800 + 1200 * len(documents)), "Research profiles")
+                "document_ids": request.document_ids, "evidence": model_evidence(evidence)}, min(8000, 2800 + 1200 * len(documents)), "Research profiles",
+                validate_output=lambda value: validate_profiles(value, request.document_ids, evidence))
         else:
             draft = ProfilesDraft(profiles=[{"document_id": identity, "fields": [{"key": key, "claims": []} for key in PROFILE_FIELDS]} for identity in request.document_ids])
         profiles = validate_profiles(draft, request.document_ids, evidence)

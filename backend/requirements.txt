@@ -17,9 +17,8 @@ mysql-connector-python>=8.0.33
 minio>=7.2.0
 python-docx>=0.8.11
 pypdf>=3.0.0
-unstructured>=0.10.30
 markdown>=3.0.0
-unstructured[md]>=0.10.0
+unstructured[md]>=0.10.30
 openai>=1.30.0
 email-validator
 dashscope>=1.13.6
