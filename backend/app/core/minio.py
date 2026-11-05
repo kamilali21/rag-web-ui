@@ -23,6 +23,8 @@ def init_minio():
     client = get_minio_client()
     logger.info(f"Checking if bucket {settings.MINIO_BUCKET_NAME} exists.")
     if not client.bucket_exists(settings.MINIO_BUCKET_NAME):
+        if not settings.CREATE_STORAGE_BUCKET:
+            raise RuntimeError("Storage bucket must be provisioned before production startup")
         logger.info(f"Bucket {settings.MINIO_BUCKET_NAME} does not exist. Creating bucket.")
         client.make_bucket(settings.MINIO_BUCKET_NAME)
     else:

@@ -3,17 +3,15 @@ from typing import Optional
 from jose import JWTError, jwt
 import bcrypt
 from app.core.config import settings
-from fastapi import Depends, HTTPException, status, Security, Request
-from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
+from fastapi import Depends, HTTPException, status, Request
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
-from app.services.api_key import APIKeyService
 from app.services.authorization import require_active_user, require_admin
 from app.services.auth_sessions import authenticate_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
     # Added by ChatGPT: OTP-only identities must fail password login without crashing.
@@ -79,31 +77,16 @@ def get_current_admin(
     # Added by ChatGPT: role/allowlist revocations take effect on the next request.
     return require_admin(db, current_user)
 
-def get_api_key_user(
-    db: Session = Depends(get_db),
-    api_key: str = Security(api_key_header),
-) -> User:
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key header missing",
-        )
-    
-    api_key_obj = APIKeyService.get_api_key_by_key(db=db, key=api_key)
-    if not api_key_obj:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
-        )
-    
-    if not api_key_obj.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive API key",
-        )
-    
-    user = require_active_user(api_key_obj.user)
-    if settings.EMAIL_OTP_ENABLED and user.email_verified_at is None:
-        raise HTTPException(403, "Verify your email before using this account")
-    APIKeyService.update_last_used(db=db, api_key=api_key_obj)
-    return user
+def reject_legacy_api_keys():
+    """Retired application credentials; personal AI provider settings are separate."""
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Legacy application API keys are disabled. Personal AI keys remain available in Profile.",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def get_api_key_user() -> User:
+    # Fail closed even if a future route imports this retired authentication dependency.
+    # Do not read credentials, query stored keys or update their last-used timestamp.
+    reject_legacy_api_keys()

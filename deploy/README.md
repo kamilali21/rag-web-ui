@@ -27,14 +27,19 @@ boundary. Only the application may access it, after SQL permission checks.
    Do not use development source mounts or floating `latest` application tags.
 2. Copy `deploy/production.env.example` to root `.env.production` and replace
    every placeholder. Use the tested image tags, prepared volume names and a
-   real DNS hostname. The backend receives that file at runtime; it is never
+   real DNS hostname. Compose interpolates an explicit backend allowlist; the
+   backend does not receive the shared file or root/bootstrap credentials. It is never
    included in build contexts. Keep independent random database/root, storage,
    JWT and OTP secrets. Preserve the MiniLM model used by the existing index.
 3. Provision or rotate database/storage credentials on the target host. Merely
    changing MySQL environment variables **does not change users/passwords inside
-   a restored MySQL volume**. Give the application a non-root database user;
-   its startup Alembic path still needs schema migration permissions. Keep root
-   credentials separate and backed up securely.
+   a restored MySQL volume**. Follow `deploy/runtime-privileges.md` for the reviewed
+   DML-only SQL account, separate migration identity and bucket-scoped MinIO user.
+   Production startup reads the Alembic revision and rejects an outdated schema;
+   it does not run DDL or create buckets. Keep root credentials separate and backed up securely.
+   Verify the prepared upload/cache volumes permit UID/GID 10001 to write. Do not
+   chown the live Windows volumes: prepare separate target copies first. The cache
+   mount moves to `/home/researchiq/.cache/huggingface`, retaining its existing contents.
 4. Set the domain's DNS records to the target host. Obtain a valid certificate
    through the hosting provider or your existing ACME client. Mount its full
    chain as `fullchain.pem` and private key as `privkey.pem` in `TLS_DIRECTORY`.
@@ -51,8 +56,7 @@ boundary. Only the application may access it, after SQL permission checks.
    provider availability, all software vulnerabilities or SMTP delivery.
 7. On the target host only, after preflight and backups:
    `docker compose --env-file .env.production -f docker-compose.production.yml up -d`.
-   For a differently named env file, also set `RESEARCHIQ_PRODUCTION_ENV` to its
-   absolute path so runtime environment and Compose interpolation use the same file.
+   For a differently named env file, use the same `--env-file` for preflight and Compose.
 
 Only Nginx publishes host ports 80/443. Database, vectors, object storage,
 backend and frontend have no published ports. Data services use a separate
@@ -69,7 +73,8 @@ Verify HTTPS/redirect and wrong-host rejection, browser login/registration/email
 verification/recovery/logout, Secure/HttpOnly session cookies, foreign-origin
 CSRF denial, Private/Public Library ownership, upload/process/download, source
 filters, streamed cited chat, saved reopening, admin publication/archive,
-bookmark behavior, and API-key creation/use/revocation. Confirm internal ports
+bookmark behavior, retired application-key APIs returning 410, and personal AI-key
+save/masking/removal. Confirm internal ports
 are unreachable externally. Check a backup/restore drill on disposable volumes.
 Do not describe the site as publicly launched until this gate passes.
 
@@ -83,3 +88,12 @@ deployment step. The Windows development configuration and its local HTTP origin
 remain separate from this production file.
 
 Configuration unit checks: `python -m unittest discover -s deploy -p 'test_*.py'`.
+
+The production backend runs as UID/GID 10001, with all Linux capabilities dropped,
+no-new-privileges, a read-only root filesystem, a bounded `/tmp`, and only uploads
+and model cache as writable persistent mounts. The local Compose file explicitly
+builds the `local` stage to preserve the existing Windows bind mounts/cache. Local
+and dev files are not safe substitutes for the standalone production profile.
+No hardened image, target grants, cache permissions or public reachability are
+certified by source/unit checks alone. Synthetic ingestion and reboot/login checks
+on the prepared host remain a release gate.

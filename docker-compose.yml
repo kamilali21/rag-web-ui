@@ -1,6 +1,10 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      target: local
+    environment:
+      ENVIRONMENT: development
     env_file:
       - .env
     extra_hosts:

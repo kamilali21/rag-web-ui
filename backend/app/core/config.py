@@ -6,6 +6,9 @@ from pydantic import Field
 
 
 class Settings(BaseSettings):
+    ENVIRONMENT: str = "development"
+    RUN_STARTUP_MIGRATIONS: bool = True
+    CREATE_STORAGE_BUCKET: bool = True
     # Independent 32-byte URL-safe base64 key; never expose to the frontend.
     AI_KEY_ENCRYPTION_KEY: str = ""
     PROJECT_NAME: str = "RAG Web UI"  # Project name
@@ -37,6 +40,7 @@ class Settings(BaseSettings):
     # Added by ChatGPT: explicit OTP cutover; unset mail settings never disrupt legacy login.
     EMAIL_OTP_ENABLED: bool = False
     AUTH_ORIGIN: str = ""
+    AUTH_LOCAL_ORIGIN: str = ""
     AUTH_ALLOW_LOCAL_HTTP: bool = False
     AUTH_OTP_SECRET: str = ""
     AUTH_TRUSTED_PROXIES: List[str] = []
@@ -113,3 +117,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Validate before importing routers/clients can initialize external services.
+from app.core.production_security import validate_production_settings
+validate_production_settings(settings)

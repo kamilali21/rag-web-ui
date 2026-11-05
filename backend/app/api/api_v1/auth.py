@@ -154,7 +154,7 @@ def login_access_token(
             return {"verification_required": True, "email": user.email}
         token, csrf = auth_sessions.create_session(db, user, request)
         db.commit()
-        auth_sessions.set_session_cookies(response, token, csrf)
+        auth_sessions.set_session_cookies(response, token, csrf, request)
         return {"authenticated": True}
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

@@ -4,20 +4,65 @@ name: ${COMPOSE_PROJECT_NAME:-researchiq}
 services:
   backend:
     image: ${BACKEND_IMAGE:?Set the tested backend image tag or digest}
-    env_file: ${RESEARCHIQ_PRODUCTION_ENV:-.env.production}
+    # Deliberate allowlist: never pass root/bootstrap/migration credentials here.
     environment:
+      ENVIRONMENT: production
+      RUN_STARTUP_MIGRATIONS: "false"
+      CREATE_STORAGE_BUCKET: "false"
       MYSQL_SERVER: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set the database name}
+      MYSQL_USER: ${MYSQL_USER:?Set the runtime DML-only account}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set the runtime database password}
       MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?Set the bucket-scoped storage user}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?Set the bucket-scoped storage secret}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-documents}
+      SECRET_KEY: ${SECRET_KEY:?Set an independent JWT secret}
+      AUTH_OTP_SECRET: ${AUTH_OTP_SECRET:?Set an independent OTP secret}
+      AI_KEY_ENCRYPTION_KEY: ${AI_KEY_ENCRYPTION_KEY:-}
       CHROMA_DB_HOST: chromadb
       CHROMA_DB_PORT: "8000"
       EMAIL_OTP_ENABLED: "true"
       AUTH_ORIGIN: https://${PUBLIC_DOMAIN:?Set the public domain}
       AUTH_ALLOW_LOCAL_HTTP: "false"
+      AUTH_LOCAL_ORIGIN: ""
       AUTH_TRUSTED_PROXIES: '["${PROXY_IP:-172.30.240.10}/32"]'
+      SMTP_HOST: ${SMTP_HOST:?Set the mail server}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_USERNAME: ${SMTP_USERNAME:?Set the mail username}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?Set the mail password}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:?Set the sender}
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-openai}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://openrouter.ai/api/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-openrouter/free}
+      OPENAI_EMBEDDINGS_MODEL: ${OPENAI_EMBEDDINGS_MODEL:-text-embedding-ada-002}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_API_BASE: ${DEEPSEEK_API_BASE:-https://api.deepseek.com/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_API_BASE: ${MINIMAX_API_BASE:-https://api.minimax.io/v1}
+      MINIMAX_MODEL: ${MINIMAX_MODEL:-MiniMax-M2.7}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE:-http://localhost:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:7b}
+      OLLAMA_EMBEDDINGS_MODEL: ${OLLAMA_EMBEDDINGS_MODEL:-nomic-embed-text}
+      DASH_SCOPE_API_KEY: ${DASH_SCOPE_API_KEY:-}
+      DASH_SCOPE_EMBEDDINGS_MODEL: ${DASH_SCOPE_EMBEDDINGS_MODEL:-}
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-huggingface}
+      HUGGINGFACE_EMBEDDINGS_MODEL: ${HUGGINGFACE_EMBEDDINGS_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY:-}
+      HF_HOME: /home/researchiq/.cache/huggingface
+      VECTOR_STORE_TYPE: chroma
+      PYTHONDONTWRITEBYTECODE: "1"
     command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8000", --no-proxy-headers]
     volumes:
       - uploads:/app/uploads
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/home/researchiq/.cache/huggingface
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777"]
     depends_on:
       db:
         condition: service_healthy
@@ -40,8 +85,8 @@ services:
     command: --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:?Set the database name}
-      MYSQL_USER: ${MYSQL_USER:?Set a non-root application user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set the application database password}
+      # Do not let the image entrypoint grant ALL to the runtime identity.
+      # Runtime and migration users are provisioned explicitly (see deploy/README.md).
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set a separate root database password}
     volumes: [mysql_data:/var/lib/mysql]
     healthcheck:
@@ -60,8 +105,8 @@ services:
   minio:
     image: cgr.dev/chainguard/minio@sha256:71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?Set the storage access key}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?Set the storage secret}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set a separate storage bootstrap user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set a separate storage bootstrap secret}
     command: server --console-address ":9001" /data
     volumes: [minio_data:/data]
     networks: [data_network]

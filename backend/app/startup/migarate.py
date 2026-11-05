@@ -74,6 +74,12 @@ class DatabaseMigrator:
         alembic_cfg.set_main_option("sqlalchemy.url", self.db_url)
         return alembic_cfg
 
+    def require_current_schema(self) -> None:
+        """Runtime identity only reads revision state; DDL is an operator step."""
+        needs_migration, _, _ = self.check_migration_needed()
+        if needs_migration:
+            raise RuntimeError("Database schema requires an operator-managed migration before startup")
+
     def run_migrations(self) -> None:
         """
         Run database migrations if needed

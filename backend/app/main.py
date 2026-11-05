@@ -31,7 +31,10 @@ async def startup_event():
     init_minio()
     # Run database migrations
     migrator = DatabaseMigrator(settings.get_database_url)
-    migrator.run_migrations()
+    if settings.RUN_STARTUP_MIGRATIONS:
+        migrator.run_migrations()
+    else:
+        migrator.require_current_schema()
     # Added by ChatGPT: provision once under the dedicated non-login owner after schema readiness.
     from app.db.session import SessionLocal
     from app.services.public_corpus import provision_corpus

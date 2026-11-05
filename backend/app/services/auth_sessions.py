@@ -23,32 +23,52 @@ def digest(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def check_configuration():
+def _valid_origin(value: str, *, local_only: bool = False) -> bool:
     try:
-        origin = urlsplit(settings.AUTH_ORIGIN)
+        origin = urlsplit(value)
         # Added by ChatGPT: never allow the local exception on a public hostname.
         local = origin.hostname in {"localhost", "127.0.0.1", "127.0.0.1.nip.io", "::1"}
-        valid = (origin.scheme == "https" or
+        valid = ((origin.scheme == "https" and not local_only) or
                  (settings.AUTH_ALLOW_LOCAL_HTTP and local and origin.scheme == "http"))
         valid = valid and origin.hostname and not (origin.username or origin.password or
                     origin.path or origin.query or origin.fragment)
         origin.port  # Validate malformed ports before processing a request.
     except ValueError:
         valid = False
+    return bool(valid)
+
+
+def check_configuration():
+    valid = _valid_origin(settings.AUTH_ORIGIN)
+    if settings.AUTH_LOCAL_ORIGIN:
+        valid = valid and _valid_origin(settings.AUTH_LOCAL_ORIGIN, local_only=True)
     if not settings.EMAIL_OTP_ENABLED or len(settings.AUTH_OTP_SECRET) < 32 or not valid:
         raise HTTPException(503, "Email sign-in is not configured")
 
 
-def cookie_names():
-    # Added by ChatGPT: __Host- cookies require Secure; HTTP development uses distinct names.
-    if settings.AUTH_ALLOW_LOCAL_HTTP and settings.AUTH_ORIGIN.startswith("http://"):
-        return "researchiq_local_session", "researchiq_local_csrf"
+def cookie_names(request: Request | None = None):
+    # Local HTTP and the HTTPS tunnel use separate, host-only cookie names.
+    # Never downgrade tunnel cookies based on Origin or forwarded-host headers.
+    if settings.AUTH_ALLOW_LOCAL_HTTP:
+        for value in (settings.AUTH_ORIGIN, settings.AUTH_LOCAL_ORIGIN):
+            if not value or not _valid_origin(value, local_only=True):
+                continue
+            if request is None:
+                local_request = value == settings.AUTH_ORIGIN
+            else:
+                local_request = (request.url.scheme == "http" and
+                                 request.url.netloc == urlsplit(value).netloc)
+            if local_request:
+                return "researchiq_local_session", "researchiq_local_csrf"
     return SESSION_COOKIE, CSRF_COOKIE
 
 
 def require_origin(request: Request):
     check_configuration()
-    if request.headers.get("origin") != settings.AUTH_ORIGIN:
+    allowed = {settings.AUTH_ORIGIN}
+    if settings.AUTH_LOCAL_ORIGIN:
+        allowed.add(settings.AUTH_LOCAL_ORIGIN)
+    if request.headers.get("origin") not in allowed:
         raise HTTPException(403, "Request origin is not allowed")
 
 
@@ -66,7 +86,7 @@ def client_address(request: Request) -> str:
 
 
 def find_session(db: Session, request: Request):
-    token = request.cookies.get(cookie_names()[0], "")
+    token = request.cookies.get(cookie_names(request)[0], "")
     if not 32 <= len(token) <= 128:
         return None
     return db.query(AuthSession).filter(
@@ -111,8 +131,8 @@ def create_session(db: Session, user: User, request: Request):
     return token, csrf
 
 
-def set_session_cookies(response: Response, token: str, csrf: str):
-    session_name, csrf_name = cookie_names()
+def set_session_cookies(response: Response, token: str, csrf: str, request: Request | None = None):
+    session_name, csrf_name = cookie_names(request)
     secure = session_name == SESSION_COOKIE
     for name, value, http_only in [(session_name, token, True), (csrf_name, csrf, False)]:
         response.set_cookie(name, value, max_age=settings.SESSION_TTL_SECONDS,

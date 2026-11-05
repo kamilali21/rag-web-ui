@@ -20,6 +20,7 @@ from tests import test_phase2_authorization as phase2
 def otp(world, monkeypatch):
     monkeypatch.setattr(settings, "EMAIL_OTP_ENABLED", True)
     monkeypatch.setattr(settings, "AUTH_ORIGIN", "https://testserver")
+    monkeypatch.setattr(settings, "AUTH_LOCAL_ORIGIN", "")
     monkeypatch.setattr(settings, "AUTH_ALLOW_LOCAL_HTTP", False)
     monkeypatch.setattr(settings, "AUTH_OTP_SECRET", "phase3-test-secret-not-for-deployment" * 2)
     monkeypatch.setattr(settings, "AUTH_TRUSTED_PROXIES", [])
@@ -337,6 +338,46 @@ def test_forwarded_ip_requires_explicit_trusted_peer(otp, monkeypatch):
     assert auth_sessions.client_address(request) == "198.51.100.1"
 
 
+def test_https_and_explicit_local_login_coexist_with_separate_cookies(otp, monkeypatch):
+    w = otp
+    monkeypatch.setattr(settings, "AUTH_ALLOW_LOCAL_HTTP", True)
+    monkeypatch.setattr(settings, "AUTH_LOCAL_ORIGIN", "http://127.0.0.1.nip.io")
+    https_result = login(w)
+    assert all("Secure" in c and "__Host-" in c for c in https_result.headers.get_list("set-cookie"))
+    w.client.base_url = settings.AUTH_LOCAL_ORIGIN
+    w.client.headers["Origin"] = settings.AUTH_LOCAL_ORIGIN
+    local_result = login(w)
+    assert all("Secure" not in c and "__Host-" not in c for c in local_result.headers.get_list("set-cookie"))
+    assert w.client.get("/api/auth/me").status_code == 200
+    assert w.client.post("/api/auth/logout").status_code == 403
+    local_csrf = w.client.cookies.get("researchiq_local_csrf")
+    assert w.client.post("/api/auth/logout", headers={"X-CSRF-Token": local_csrf}).status_code == 200
+    assert w.client.get("/api/auth/me").status_code == 401
+    w.client.base_url = settings.AUTH_ORIGIN
+    w.client.headers["Origin"] = settings.AUTH_ORIGIN
+    assert w.client.get("/api/auth/me").status_code == 200
+    assert w.client.post("/api/auth/logout", headers={"Origin": "https://evil.invalid"}).status_code == 403
+    assert w.client.post("/api/auth/logout", headers=csrf(w)).status_code == 200
+
+
+@pytest.mark.parametrize("origin", ["http://public.example.com", "https://localhost", "http://127.0.0.1.nip.io/path", "http://localhost:bad"])
+def test_additional_origin_is_local_http_only(otp, monkeypatch, origin):
+    monkeypatch.setattr(settings, "AUTH_ALLOW_LOCAL_HTTP", True)
+    monkeypatch.setattr(settings, "AUTH_LOCAL_ORIGIN", origin)
+    with pytest.raises(HTTPException):
+        auth_sessions.check_configuration()
+
+
+def test_tunnel_cookies_cannot_be_downgraded_by_origin_or_forwarded_host(otp, monkeypatch):
+    monkeypatch.setattr(settings, "AUTH_ALLOW_LOCAL_HTTP", True)
+    monkeypatch.setattr(settings, "AUTH_LOCAL_ORIGIN", "http://127.0.0.1.nip.io")
+    request = Request({"type": "http", "scheme": "http", "path": "/api/auth/token",
+                       "headers": [(b"host", b"localhost"),
+                                   (b"origin", b"http://127.0.0.1.nip.io"),
+                                   (b"x-forwarded-host", b"127.0.0.1.nip.io")]})
+    assert auth_sessions.cookie_names(request) == (auth_sessions.SESSION_COOKIE, auth_sessions.CSRF_COOKIE)
+
+
 @pytest.mark.parametrize("mode", ["starttls", "ssl"])
 def test_smtp_uses_verified_tls_and_configured_sender(otp, monkeypatch, mode):
     # Call the real SMTP adapter; no network or credentials are used by this test.
@@ -376,7 +417,7 @@ def test_cookie_writes_require_csrf_and_remain_owner_scoped(otp):
     result = w.client.post("/api/knowledge-base", json=body, headers=csrf(w))
     assert result.status_code == 200 and result.json()["user_id"] == w.alice.id
     assert w.client.get(f"/api/knowledge-base/{w.bob_kb.id}").status_code == 404
-    phase2.test_owner_access_and_api_key_retrieval_still_work(w)
+    phase2.test_owner_browser_access_works_but_legacy_api_key_is_retired(w)
 
 
 def test_configuration_failure_does_not_downgrade_authentication(otp, monkeypatch):
@@ -542,7 +583,7 @@ def test_new_password_policy_is_enforced_server_side(otp, password):
 
 def test_unverified_api_key_and_session_cannot_bypass_verification(otp):
     w = otp
-    assert w.client.get(f"/openapi/knowledge/{w.alice_kb.id}/query", params={"query": "secret"}, headers={"X-API-Key": "phase2-alice"}).status_code == 403
+    assert w.client.get(f"/openapi/knowledge/{w.alice_kb.id}/query", params={"query": "secret"}, headers={"X-API-Key": "phase2-alice"}).status_code == 410
     login(w)
     w.db.expire_all()
     w.alice.email_verified_at = None

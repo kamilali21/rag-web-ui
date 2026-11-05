@@ -6,9 +6,9 @@ import logging
 from app import models, schemas
 from app.db.session import get_db
 from app.services.api_key import APIKeyService
-from app.core.security import get_current_user
+from app.core.security import get_current_user, reject_legacy_api_keys
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(reject_legacy_api_keys)], include_in_schema=False)
 logger = logging.getLogger(__name__)
 
 @router.get("/", response_model=List[schemas.APIKey])

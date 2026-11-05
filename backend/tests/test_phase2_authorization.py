@@ -208,7 +208,7 @@ def test_unavailable_identities_rejected_by_password_jwt_and_api_key(world, acto
     assert w.client.post("/api/auth/test-token", headers=w.headers(user)).status_code == 401
     with patch("app.services.retrieval_scope.EmbeddingsFactory.create") as embeddings:
         response = w.client.get(f"/openapi/knowledge/{w.alice_kb.id}/query", params={"query": "secret"}, headers={"X-API-Key": f"phase2-{user.username}"})
-    assert response.status_code == 401
+    assert response.status_code == 410
     embeddings.assert_not_called()
     assert w.db.query(APIKey).filter_by(user_id=user.id).one().last_used_at is None
 
@@ -317,20 +317,20 @@ def test_cleanup_is_owner_scoped_even_for_admin(world):
     assert w.db.query(DocumentUpload).filter_by(id=w.uploads[2].id).count() == 1
 
 
-def test_api_key_retrieval_and_key_management_preserve_ownership(world):
+def test_retired_api_key_routes_deny_researchers_and_admins(world):
     w = world
     from app.services import retrieval_scope as knowledge
     for user in [w.alice, w.professor, w.superuser]:
         with patch.object(knowledge.EmbeddingsFactory, "create") as embeddings:
             result = w.client.get(f"/openapi/knowledge/{w.bob_kb.id}/query", params={"query": "secret"}, headers={"X-API-Key": f"phase2-{user.username}"})
-        assert result.status_code == 404
+        assert result.status_code == 410
         embeddings.assert_not_called()
         foreign_key = w.db.query(APIKey).filter_by(user_id=w.bob.id).one()
-        assert w.client.put(f"/api/api-keys/{foreign_key.id}", json={"name": "hijack"}, headers=w.headers(user)).status_code == 403
-        assert w.client.delete(f"/api/api-keys/{foreign_key.id}", headers=w.headers(user)).status_code == 403
+        assert w.client.put(f"/api/api-keys/{foreign_key.id}", json={"name": "hijack"}, headers=w.headers(user)).status_code == 410
+        assert w.client.delete(f"/api/api-keys/{foreign_key.id}", headers=w.headers(user)).status_code == 410
 
 
-def test_owner_access_and_api_key_retrieval_still_work(world):
+def test_owner_browser_access_works_but_legacy_api_key_is_retired(world):
     w = world
     from app.services import retrieval_scope as knowledge
     w.db.add(ProcessingTask(knowledge_base_id=w.alice_kb.id, document_id=w.alice_doc.id, status="completed"))
@@ -341,8 +341,8 @@ def test_owner_access_and_api_key_retrieval_still_work(world):
     with patch.object(knowledge.EmbeddingsFactory, "create"), patch.object(knowledge.VectorStoreFactory, "create") as store:
         store.return_value.search_permitted.return_value = []
         result = w.client.get(f"/openapi/knowledge/{w.alice_kb.id}/query", params={"query": "own research"}, headers={"X-API-Key": "phase2-alice"})
-        assert result.status_code == 200
-        store.assert_called_once()
+        assert result.status_code == 410
+        store.assert_not_called()
 
 
 def test_private_creation_ignores_client_ownership_and_scope_fields(world):
@@ -409,7 +409,7 @@ def test_disabled_api_key_and_invalid_or_expired_tokens_are_rejected(world):
     key.is_active = False
     w.db.commit()
     response = w.client.get(f"/openapi/knowledge/{w.alice_kb.id}/query", params={"query": "own"}, headers={"X-API-Key": key.key})
-    assert response.status_code == 401
+    assert response.status_code == 410
     assert w.client.get("/api/knowledge-base", headers={"Authorization": "Bearer invalid"}).status_code == 401
     token = create_access_token({"sub": w.alice.username}, expires_delta=timedelta(seconds=-1))
     assert w.client.get("/api/knowledge-base", headers={"Authorization": f"Bearer {token}"}).status_code == 401

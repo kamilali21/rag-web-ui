@@ -13,11 +13,11 @@ from tests.test_phase3_authentication import otp, login, csrf
 def test_owner_responses_and_authentication_failures_are_not_cacheable(world, path):
     w = world
     owner = w.client.get(path, headers=w.headers(w.alice))
-    assert owner.status_code == 200, (path, owner.text)
+    assert owner.status_code == (410 if path == '/api/api-keys/' else 200), (path, owner.text)
     assert owner.headers['cache-control'] == 'no-store'
     assert owner.headers['x-content-type-options'] == 'nosniff'
     denied = w.client.get(path)
-    assert denied.status_code == 401
+    assert denied.status_code == (410 if path == '/api/api-keys/' else 401)
     assert denied.headers['cache-control'] == 'no-store'
 
 

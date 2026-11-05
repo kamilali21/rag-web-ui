@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.db.session import get_db
-from app.core.security import get_api_key_user
+from app.core.security import get_api_key_user, reject_legacy_api_keys
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(reject_legacy_api_keys)], include_in_schema=False)
 
 @router.get("/{knowledge_base_id}/query")
 def query_knowledge_base(

@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS local
 
 WORKDIR /app
 
@@ -29,7 +29,16 @@ RUN mkdir -p uploads
 
 # Set Python path and environment
 ENV PYTHONPATH=/app
-ENV ENVIRONMENT=production
+ENV ENVIRONMENT=development
 
 # Run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Default build is production. The local Compose file explicitly selects `local`.
+FROM local AS production
+RUN groupadd --gid 10001 researchiq \
+  && useradd --uid 10001 --gid 10001 --create-home researchiq \
+  && mkdir -p /home/researchiq/.cache/huggingface \
+  && chown -R 10001:10001 /app/uploads /home/researchiq
+ENV ENVIRONMENT=production PYTHONDONTWRITEBYTECODE=1 HF_HOME=/home/researchiq/.cache/huggingface
+USER 10001:10001
