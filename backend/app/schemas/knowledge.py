@@ -1,6 +1,7 @@
-from typing import Optional, List
+from typing import Annotated, Optional, List
 from datetime import datetime
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer, model_validator
+from app.services.preview_limits import MAX_FILES, check_chunk_settings
 
 PROCESSING_FAILURE = "Document processing failed; check the file and try again."
 
@@ -87,6 +88,13 @@ class KnowledgeBaseResponse(KnowledgeBaseBase):
         from_attributes = True
 
 class PreviewRequest(BaseModel):
-    document_ids: List[int]
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
+    document_ids: List[Annotated[int, Field(strict=True, gt=0)]] = Field(min_length=1, max_length=MAX_FILES)
+    chunk_size: int = Field(default=1000, strict=True, ge=256, le=4000)
+    chunk_overlap: int = Field(default=200, strict=True, ge=0)
+
+    @model_validator(mode="after")
+    def bounded_preview(self):
+        if len(self.document_ids) != len(set(self.document_ids)):
+            raise ValueError("Select distinct documents")
+        check_chunk_settings(self.chunk_size, self.chunk_overlap)
+        return self
